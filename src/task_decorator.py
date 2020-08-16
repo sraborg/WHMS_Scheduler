@@ -49,12 +49,12 @@ class TaskDecorator(ABC):
         self._task.dynamic_tasks = tasks
 
     @property
-    def future_task(self):
+    def future_tasks(self):
         return self._task.future_tasks
 
-    @future_task.setter
-    def future_task(self, tasks):
-        self._task.future_task = tasks
+    @future_tasks.setter
+    def future_tasks(self, tasks):
+        self._task.future_tasks = tasks
 
     def execute(self):
         self._task.execute()

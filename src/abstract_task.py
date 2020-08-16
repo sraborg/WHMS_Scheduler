@@ -11,7 +11,7 @@ class AbstractTask(ABC):
         self._cost = None
         self._dependent_tasks = builder.dependent_tasks
         self._dynamic_tasks = builder.dynamic_tasks        # potential tasks
-        self._future_tasks = None                           # Tasks
+        self._future_tasks = []                           # Tasks
 
     @property
     def cost(self):
@@ -62,5 +62,5 @@ class AbstractTask(ABC):
         self._future_tasks = tasks
 
     def execute(self):
-        pass
+        self._analysis.execute()
 

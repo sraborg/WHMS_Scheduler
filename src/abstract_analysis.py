@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 
 
 class AbstractAnalysis(ABC):
@@ -22,3 +22,7 @@ class AbstractAnalysis(ABC):
     @wcbu.setter
     def wcbu(self, cost):
         self._wcbu = cost
+
+    @abstractmethod
+    def execute(self):
+        pass
