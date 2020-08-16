@@ -3,7 +3,7 @@ from analysis_factory import AnalysisFactory
 from task_with_dependencies import TaskWithDependencies
 from task_with_dynamic_tasks import TaskWithDynamicTasks
 from task import Task
-from copy import copy           # Used to fix error with getTask
+import copy           # Used to fix error with getTask
 
 
 class TaskBuilder(BuilderInterface):
@@ -37,7 +37,8 @@ class TaskBuilder(BuilderInterface):
 
     def get_task(self):
 
-        task = Task(copy.copy(self))                    # Temp Fix for reference issue
+        build_order = copy.copy(self)
+        task = Task(build_order)                    # Temp Fix for reference issue
 
         # Use decorators to add dependencies / dynamic tasks
         if self._dependent_tasks is not None:

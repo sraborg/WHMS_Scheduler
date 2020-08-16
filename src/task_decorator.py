@@ -17,6 +17,22 @@ class TaskDecorator(ABC):
         self._task.cost = cost
 
     @property
+    def analysis(self):
+        return self._task.analysis
+
+    @analysis.setter
+    def deadline(self, analysis_type):
+        self._task.analysis = analysis_type
+
+    @property
+    def deadline(self):
+        return self._task.deadline
+
+    @deadline.setter
+    def deadline(self, deadline):
+        self._task.deadline = deadline
+
+    @property
     def dependent_tasks(self):
         return self._task.dependent_tasks
 

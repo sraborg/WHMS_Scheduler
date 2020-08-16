@@ -8,7 +8,7 @@ class AbstractTask(ABC):
         self._analysis = builder.analysis
         self._nu = None
         self._deadline = builder.deadline
-        #self._cost = None
+        self._cost = None
         self._dependent_tasks = builder.dependent_tasks
         self._dynamic_tasks = builder.dynamic_tasks        # potential tasks
         self._future_tasks = None                           # Tasks
@@ -20,6 +20,22 @@ class AbstractTask(ABC):
     @cost.setter
     def cost(self, cost):
         self._cost = cost
+
+    @property
+    def analysis(self):
+        return self._analysis
+
+    @analysis.setter
+    def cost(self, analysis):
+        self._analysis = analysis
+
+    @property
+    def deadline(self):
+        return self._deadline
+
+    @deadline.setter
+    def cost(self, deadline):
+        self._deadline = deadline
 
     @property
     def dependent_tasks(self):

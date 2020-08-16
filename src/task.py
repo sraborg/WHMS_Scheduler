@@ -14,6 +14,7 @@ class Task(AbstractTask):
         # self._dynamic_tasks = builder._dynamic_tasks        # potential tasks
         # self._future_tasks = None                           # Tasks
 
+'''
     @property
     def cost(self):
         return self._cost
@@ -48,3 +49,4 @@ class Task(AbstractTask):
 
     def execute(self):
         pass
+'''
