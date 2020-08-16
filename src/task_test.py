@@ -15,6 +15,8 @@ for i in range(10):
 
     sys.add_task(tb.get_task())
 
+sys.set_scheduler("DumMy")
+sys.schedule_tasks()
 sys.execute_schedule()
 
 print('d')

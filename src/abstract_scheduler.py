@@ -1,6 +1,6 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from abstract_task import AbstractTask
-from typing import Set
+from typing import List
 
 
 class AbstractScheduler(ABC):
@@ -8,5 +8,6 @@ class AbstractScheduler(ABC):
     def __init__(self):
         pass
 
-    def generate_schedule(self, tasklist: Set[AbstractTask]) -> Set[AbstractTask]:
+    @abstractmethod
+    def schedule_tasks(self, tasklist: List[AbstractTask]) -> List[AbstractTask]:
         pass
