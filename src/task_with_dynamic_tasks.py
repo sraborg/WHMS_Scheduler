@@ -12,7 +12,7 @@ class TaskWithDynamicTasks(TaskDecorator):
         self._check_dynamic_tasks()
 
     def _check_dynamic_tasks(self):
-        for dyn_task in self._dynamic_tasks:
+        for dyn_task in self.dynamic_tasks:
             if (dyn_task(1)):
-                self._task.new_tasks.append(dyn_task(0))
+                self._task.future_tasks.append(dyn_task(0))
 

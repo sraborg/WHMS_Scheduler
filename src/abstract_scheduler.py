@@ -8,5 +8,5 @@ class AbstractScheduler:
     def __init__(self):
         pass
 
-    def generateSchedule(self, tasklist: Set[AbstractTask]) -> Set[AbstractTask]:
+    def generate_schedule(self, tasklist: Set[AbstractTask]) -> Set[AbstractTask]:
         pass
