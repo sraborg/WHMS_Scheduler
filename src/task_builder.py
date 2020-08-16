@@ -1,9 +1,9 @@
 from builder_interface import BuilderInterface
 from analysis_factory import AnalysisFactory
-from abstract_analysis import AbstractAnalysis
 from task_with_dependencies import TaskWithDependencies
 from task_with_dynamic_tasks import TaskWithDynamicTasks
 from task import Task
+from copy import copy           # Used to fix error with getTask
 
 
 class TaskBuilder(BuilderInterface):
@@ -37,8 +37,7 @@ class TaskBuilder(BuilderInterface):
 
     def get_task(self):
 
-        task = Task(self)
-
+        task = Task(copy.copy(self))
 
         # Use decorators to add dependencies / dynamic tasks
         if self._dependent_tasks is not None:
@@ -49,3 +48,19 @@ class TaskBuilder(BuilderInterface):
 
         self.reset()
         return task
+
+    @property
+    def analysis(self):
+        return self._analysis
+
+    @property
+    def deadline(self) -> int:
+        return self._deadline
+
+    @property
+    def dependent_tasks(self):
+        return self._dependent_tasks
+
+    @property
+    def dynamic_tasks(self):
+        return self._dynamic_tasks

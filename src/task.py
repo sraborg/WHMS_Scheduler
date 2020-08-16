@@ -5,13 +5,14 @@ from builder_interface import BuilderInterface
 class Task(AbstractTask):
 
     def __init__(self, builder: BuilderInterface):
-        self._analysis = builder._analysis
-        self._nu = builder._analysis
-        self._deadline = builder._deadline
+        super().__init__(builder)
+        # self._analysis = builder._analysis
+        # self._nu = builder._analysis
+        # self._deadline = builder._deadline
         # self._cost = None
-        self._dependent_tasks = builder._dependent_tasks
-        self._dynamic_tasks = builder._dynamic_tasks        # potential tasks
-        self._future_tasks = None                           # Tasks
+        # self._dependent_tasks = builder._dependent_tasks
+        # self._dynamic_tasks = builder._dynamic_tasks        # potential tasks
+        # self._future_tasks = None                           # Tasks
 
     @property
     def cost(self):
