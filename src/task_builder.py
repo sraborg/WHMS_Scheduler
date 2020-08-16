@@ -37,7 +37,7 @@ class TaskBuilder(BuilderInterface):
 
     def get_task(self):
 
-        task = Task(copy.copy(self))
+        task = Task(copy.copy(self))                    # Temp Fix for reference issue
 
         # Use decorators to add dependencies / dynamic tasks
         if self._dependent_tasks is not None:
