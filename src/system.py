@@ -11,11 +11,10 @@ class System:
     def addTask(self, task: AbstractTask):
         self._taskset.add(task)
 
-
     def executeSchedule(self):
-        self._before()
+        # self._before()
         for task in self._taskset:
             task._before()
             task._execute()
             task._after()
-        self._after()
+        # self._after()

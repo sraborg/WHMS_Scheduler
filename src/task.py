@@ -8,7 +8,7 @@ class Task(AbstractTask):
         self._analysis = builder._analysis
         self._nu = builder._analysis
         self._deadline = builder._deadline
-        #self._cost = None
+        # self._cost = None
         self._dependent_tasks = builder._dependent_tasks
         self._dynamic_tasks = builder._dynamic_tasks        # potential tasks
         self._future_tasks = None                           # Tasks
@@ -18,7 +18,7 @@ class Task(AbstractTask):
         return self._cost
 
     @cost.setter
-    def dependent_tasks(self, cost):
+    def cost(self, cost):
         self._cost = cost
 
     @property
@@ -47,4 +47,3 @@ class Task(AbstractTask):
 
     def execute(self):
         pass
-

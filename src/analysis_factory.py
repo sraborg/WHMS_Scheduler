@@ -1,14 +1,13 @@
-from abstract_analysis import AbstractAnalysis
 from dummy_analysis import DummyAnalysis
 
 
 class AnalysisFactory:
 
     @staticmethod
-    def get_analysis(type: str):
+    def get_analysis(analysis_type: str):
         analysis = None
 
-        if type.upper() == "DUMMY":
+        if analysis_type.upper() == "DUMMY":
             analysis = DummyAnalysis()
         else:
             raise Exception("Invalid Analysis Type")

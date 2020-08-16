@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from abstract_analysis import AbstractAnalysis
 
 
 class BuilderInterface(ABC):

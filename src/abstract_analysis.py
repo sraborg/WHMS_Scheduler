@@ -19,6 +19,6 @@ class AbstractAnalysis(ABC):
     def wcbu(self):
         return self._wcbu
 
-    @wcet.setter
+    @wcbu.setter
     def wcbu(self, cost):
         self._wcbu = cost
