@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from abstract_analysis import AbstractAnalysis # Typing hints
 
 
-class BuilderInterface(ABC):
+class TaskBuilderInterface(ABC):
 
     @abstractmethod
     def reset(self):

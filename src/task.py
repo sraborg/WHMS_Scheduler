@@ -1,10 +1,10 @@
 from abstract_task import AbstractTask
-from builder_interface import BuilderInterface
+from task_builder_interface import TaskBuilderInterface
 
 
 class Task(AbstractTask):
 
-    def __init__(self, builder: BuilderInterface):
+    def __init__(self, builder: TaskBuilderInterface):
         super().__init__(builder)
         # self._analysis = builder._analysis
         # self._nu = builder._analysis

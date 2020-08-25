@@ -1,10 +1,10 @@
 from abc import ABC
-from builder_interface import BuilderInterface
+from task_builder_interface import TaskBuilderInterface
 
 
 class AbstractTask(ABC):
 
-    def __init__(self, builder: BuilderInterface):
+    def __init__(self, builder: TaskBuilderInterface):
         self._analysis = builder.analysis
         self._nu = None
         self._deadline = builder.deadline

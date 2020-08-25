@@ -1,6 +1,11 @@
+"""A dummy Analysis Class
+
+"""
+
 from abstract_analysis import AbstractAnalysis
 import random
 from time import sleep
+
 
 class DummyAnalysis(AbstractAnalysis):
 
@@ -10,6 +15,13 @@ class DummyAnalysis(AbstractAnalysis):
         self._wcbu = 1
 
     def execute(self):
+        """This function simulates running a dummy task.
+
+        :return: void
+
+        The function randoms an execution time close to worst-case execution time (wcet). Note it can exceed it's deadline.
+
+        """
         execution_time = random.randint(self._wcet - 1, self._wcet + 1)
         print("Running Dummy Task")
         sleep(execution_time/1000)

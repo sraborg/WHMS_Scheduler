@@ -1,4 +1,4 @@
-from builder_interface import BuilderInterface
+from task_builder_interface import TaskBuilderInterface
 from analysis_factory import AnalysisFactory
 from task_with_dependencies import TaskWithDependencies
 from task_with_dynamic_tasks import TaskWithDynamicTasks
@@ -6,7 +6,7 @@ from task import Task
 import copy           # Used to fix error with getTask
 
 
-class TaskBuilder(BuilderInterface):
+class TaskBuilder(TaskBuilderInterface):
 
     def __init__(self):
         self._analysis = None
