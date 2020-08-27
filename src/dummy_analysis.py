@@ -23,6 +23,6 @@ class DummyAnalysis(AbstractAnalysis):
 
         """
         execution_time = random.randint(self._wcet - 1, self._wcet + 1)
-        print("Running Dummy Task")
+        print("Running Task: " + str(id(self)))
         sleep(execution_time/1000)
-        print("Completed Task after " + str(execution_time) + " milliseconds")
+        print("Completed Task " + str(id(self)) + " after " + str(execution_time) + " milliseconds")

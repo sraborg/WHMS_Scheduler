@@ -2,7 +2,7 @@ from abstract_task import AbstractTask
 from task_builder_interface import TaskBuilderInterface
 
 
-class Task(AbstractTask):
+class CustomTask(AbstractTask):
 
     def __init__(self, builder: TaskBuilderInterface):
         super().__init__(builder)
@@ -13,6 +13,9 @@ class Task(AbstractTask):
         # self._dependent_tasks = builder._dependent_tasks
         # self._dynamic_tasks = builder._dynamic_tasks        # potential tasks
         # self._future_tasks = None                           # Tasks
+
+    def value(self):
+        return 1
 
 '''
     @property

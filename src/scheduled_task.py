@@ -10,5 +10,8 @@ class ScheduledTask:
         self.completion_time = None
         self.execution_time = None
 
+    def value(self):
+        return self.task.value()
+
     def execute(self):
         self.task.execute()

@@ -2,15 +2,22 @@ from task_builder_interface import TaskBuilderInterface
 from analysis_factory import AnalysisFactory
 from task_with_dependencies import TaskWithDependencies
 from task_with_dynamic_tasks import TaskWithDynamicTasks
-from task import Task
+from custom_task import CustomTask
+from typing import Optional
+from abstract_analysis import AbstractAnalysis                      # Type Hint
+from abstract_nu import AbstractNu                                  # Type Hint
+from nu_regression import NuRegression
+
 import copy           # Used to fix error with getTask
 
 
 class TaskBuilder(TaskBuilderInterface):
 
     def __init__(self):
-        self._analysis = None
-        self._deadline = None
+        self._analysis: Optional[AbstractAnalysis] = None
+        self._nu: Optional[AbstractNu] = None
+        self._soft_deadline = None
+        self._hard_deadline = None
         self._dependent_tasks = None
         self._dynamic_tasks = None  # potential tasks
         self._new_tasks = None
@@ -18,7 +25,9 @@ class TaskBuilder(TaskBuilderInterface):
 
     def reset(self):
         self._analysis = None
-        self._deadline = None
+        self._nu = NuRegression()                       # Defaults to Regression
+        self._soft_deadline = None
+        self._soft_deadline = None
         self._dependent_tasks = None
         self._dynamic_tasks = None  # potential tasks
         self._new_tasks = None
@@ -26,8 +35,14 @@ class TaskBuilder(TaskBuilderInterface):
     def set_analysis(self, analysis_type: str):
         self._analysis = AnalysisFactory.get_analysis(analysis_type)
 
-    def set_deadline(self, deadline):
+    def set_nu(self, method: AbstractNu) -> None:
+        self._nu = method
+
+    def set_soft_deadline(self, deadline):
         self._deadline = deadline
+
+    def set_hard_deadline(self, deadline):
+        self._hard_deadline = deadline
 
     def add_dependencies(self, dependencies):
         self._dependent_tasks = dependencies
@@ -38,7 +53,7 @@ class TaskBuilder(TaskBuilderInterface):
     def get_task(self):
 
         build_order = copy.copy(self)
-        task = Task(build_order)                    # Temp Fix for reference issue
+        task = CustomTask(build_order)                    # Temp Fix for reference issue
 
         # Use decorators to add dependencies / dynamic tasks
         if self._dependent_tasks is not None:
@@ -55,8 +70,16 @@ class TaskBuilder(TaskBuilderInterface):
         return self._analysis
 
     @property
-    def deadline(self) -> int:
-        return self._deadline
+    def nu(self):
+        return self._nu
+
+    @property
+    def soft_deadline(self) -> int:
+        return self._soft_deadline
+
+    @property
+    def hard_deadline(self) -> int:
+        return self._hard_deadline
 
     @property
     def dependent_tasks(self):

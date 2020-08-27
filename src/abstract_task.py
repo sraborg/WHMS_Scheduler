@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from task_builder_interface import TaskBuilderInterface
 
 
@@ -6,8 +6,9 @@ class AbstractTask(ABC):
 
     def __init__(self, builder: TaskBuilderInterface):
         self._analysis = builder.analysis
-        self._nu = None
-        self._deadline = builder.deadline
+        self._nu = builder.nu
+        self._soft_deadline = builder.soft_deadline
+        self._hard_deadline = builder.hard_deadline
         self._cost = None
         self._dependent_tasks = builder.dependent_tasks
         self._dynamic_tasks = builder.dynamic_tasks        # potential tasks
@@ -26,7 +27,7 @@ class AbstractTask(ABC):
         return self._analysis
 
     @analysis.setter
-    def cost(self, analysis):
+    def analysis(self, analysis):
         self._analysis = analysis
 
     @property
@@ -34,7 +35,7 @@ class AbstractTask(ABC):
         return self._deadline
 
     @deadline.setter
-    def cost(self, deadline):
+    def deadline(self, deadline):
         self._deadline = deadline
 
     @property
@@ -64,3 +65,6 @@ class AbstractTask(ABC):
     def execute(self):
         self._analysis.execute()
 
+    @abstractmethod
+    def value(self):
+        pass

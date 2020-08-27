@@ -18,12 +18,17 @@ class System:
 
     def execute_schedule(self):
         # self._before()
+        total = 0
         for task in self._schedule:
             task.release_time = self._get_time_in_milliseconds()
             task.execute()
             task.completion_time = self._get_time_in_milliseconds()
             task.execution_time = task.completion_time - task.release_time
+            total += task.value()
+            print("task value: " + str(task.value()))
         # self._after()
+
+        print("Completed " + str(len(self._schedule)) + " tasks for total value of " + str(total))
 
     def _get_time_in_milliseconds(self) -> int:
         return int(round(time.time() * 1000))

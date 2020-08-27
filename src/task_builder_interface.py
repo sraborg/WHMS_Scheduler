@@ -17,7 +17,11 @@ class TaskBuilderInterface(ABC):
         pass
 
     @abstractmethod
-    def set_deadline(self, deadline: int):
+    def set_soft_deadline(self, deadline: int):
+        pass
+
+    @abstractmethod
+    def set_hard_deadline(self, deadline: int):
         pass
 
     @abstractmethod
@@ -30,7 +34,11 @@ class TaskBuilderInterface(ABC):
         pass
 
     @abstractmethod
-    def deadline(self) -> int:
+    def soft_deadline(self) -> int:
+        pass
+
+    @abstractmethod
+    def hard_deadline(self) -> int:
         pass
 
     @abstractmethod

@@ -8,6 +8,9 @@ class TaskDecorator(ABC):
         super().__init__()
         self._task = task
 
+    def value(self):
+        return self._task.value()
+
     @property
     def cost(self):
         return self._task.cost
@@ -15,6 +18,14 @@ class TaskDecorator(ABC):
     @cost.setter
     def cost(self, cost):
         self._task.cost = cost
+
+    @property
+    def nu(self):
+        return self._task.nu
+
+    @nu.setter
+    def cost(self, method):
+        self._task.nu = method
 
     @property
     def analysis(self):
