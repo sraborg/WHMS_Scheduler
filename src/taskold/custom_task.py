@@ -1,5 +1,5 @@
-from abstract_task import AbstractTask
-from task_builder_interface import TaskBuilderInterface
+from taskold.abstract_task import AbstractTask
+from taskold.task_builder_interface import TaskBuilderInterface
 
 
 class CustomTask(AbstractTask):

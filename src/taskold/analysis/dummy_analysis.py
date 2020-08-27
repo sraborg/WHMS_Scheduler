@@ -2,7 +2,7 @@
 
 """
 
-from abstract_analysis import AbstractAnalysis
+from taskold.analysis.abstract_analysis import AbstractAnalysis
 import random
 from time import sleep
 
@@ -15,7 +15,7 @@ class DummyAnalysis(AbstractAnalysis):
         self._wcbu = 1
 
     def execute(self):
-        """This function simulates running a dummy task.
+        """This function simulates running a dummy taskold.
 
         :return: void
 

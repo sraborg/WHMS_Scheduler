@@ -1,5 +1,5 @@
-from task_decorator import TaskDecorator
-from abstract_task import AbstractTask
+from taskold.task_decorator import TaskDecorator
+from taskold.abstract_task import AbstractTask
 
 
 class TaskWithDependencies(TaskDecorator):

@@ -1,4 +1,4 @@
-from abstract_task import AbstractTask
+from taskold.abstract_task import AbstractTask
 
 
 class ScheduledTask:

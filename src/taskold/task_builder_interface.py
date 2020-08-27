@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from abstract_analysis import AbstractAnalysis # Typing hints
+from taskold.analysis.abstract_analysis import AbstractAnalysis # Typing hints
 
 
 class TaskBuilderInterface(ABC):

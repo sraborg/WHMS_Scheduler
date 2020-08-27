@@ -1,4 +1,4 @@
-from dummy_analysis import DummyAnalysis
+from taskold.analysis.dummy_analysis import DummyAnalysis
 
 
 class AnalysisFactory:

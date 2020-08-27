@@ -1,4 +1,4 @@
-from dummy_scheduler import DummyScheduler
+from schedulero.dummy_scheduler import DummyScheduler
 
 
 class SchedulerFactory:

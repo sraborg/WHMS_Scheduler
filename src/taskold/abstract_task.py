@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from task_builder_interface import TaskBuilderInterface
+from taskold.task_builder_interface import TaskBuilderInterface
 
 
 class AbstractTask(ABC):

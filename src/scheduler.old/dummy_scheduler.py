@@ -1,6 +1,8 @@
 from typing import List
-from abstract_scheduler import AbstractScheduler
-from abstract_task import AbstractTask
+#from scheduler.old.abstract_scheduler import AbstractScheduler
+
+from task.abstract_task import AbstractTask
+from .abstract_scheduler import AbstractScheduler
 # from random import sample
 import random
 

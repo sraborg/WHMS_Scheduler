@@ -1,6 +1,5 @@
-from abstract_task import AbstractTask
-from scheduled_task import ScheduledTask
-from scheduler_factory import SchedulerFactory
+from task import AbstractTask, ScheduledTask
+from scheduler import SchedulerFactory
 from typing import List
 import time
 
@@ -25,7 +24,7 @@ class System:
             task.completion_time = self._get_time_in_milliseconds()
             task.execution_time = task.completion_time - task.release_time
             total += task.value()
-            print("task value: " + str(task.value()))
+            print("taskold value: " + str(task.value()))
         # self._after()
 
         print("Completed " + str(len(self._schedule)) + " tasks for total value of " + str(total))

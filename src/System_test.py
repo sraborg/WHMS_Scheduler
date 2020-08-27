@@ -1,6 +1,6 @@
 from system import System
-from dummy_task import DummyTask
-from dummy_scheduler import DummyScheduler
+from task.dummy_task import DummyTask
+from schedulero.dummy_scheduler import DummyScheduler
 
 system = System()
 

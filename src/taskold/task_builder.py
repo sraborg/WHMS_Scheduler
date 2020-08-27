@@ -1,12 +1,12 @@
-from task_builder_interface import TaskBuilderInterface
-from analysis_factory import AnalysisFactory
-from task_with_dependencies import TaskWithDependencies
-from task_with_dynamic_tasks import TaskWithDynamicTasks
-from custom_task import CustomTask
+from taskold.task_builder_interface import TaskBuilderInterface
+from taskold.analysis.analysis_factory import AnalysisFactory
+from taskold.task_with_dependencies import TaskWithDependencies
+from taskold.task_with_dynamic_tasks import TaskWithDynamicTasks
+from taskold.custom_task import CustomTask
 from typing import Optional
-from abstract_analysis import AbstractAnalysis                      # Type Hint
-from abstract_nu import AbstractNu                                  # Type Hint
-from nu_regression import NuRegression
+from taskold.analysis.abstract_analysis import AbstractAnalysis                      # Type Hint
+from taskold.nu.abstract_nu import AbstractNu                                  # Type Hint
+from taskold.nu.nu_regression import NuRegression
 
 import copy           # Used to fix error with getTask
 

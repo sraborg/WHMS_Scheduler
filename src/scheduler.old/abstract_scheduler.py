@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from abstract_task import AbstractTask
+from task.abstract_task import AbstractTask
 from typing import List
 
 

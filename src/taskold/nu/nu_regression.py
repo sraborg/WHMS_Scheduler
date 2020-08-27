@@ -1,4 +1,4 @@
-from abstract_nu import AbstractNu
+from taskold.nu.abstract_nu import AbstractNu
 
 
 class NuRegression(AbstractNu):
