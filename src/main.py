@@ -1,12 +1,10 @@
 from system import System
-from task_builder import TaskBuilder
-from scheduled_task import ScheduledTask
-import time
+from task import TaskBuilder
 
 sys = System()
 
 tb = TaskBuilder()
-tasklist = []
+
 for i in range(10):
     tb.set_soft_deadline("Some Deadline")
     tb.set_hard_deadline(123)

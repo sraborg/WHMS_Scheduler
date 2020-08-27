@@ -11,3 +11,12 @@ class AbstractNu(ABC):
     @abstractmethod
     def value(self, time):
         pass
+
+
+class NuRegression(AbstractNu):
+
+    def __init__(self):
+        super().__init__()
+
+    def value(self, time):
+        return 1
