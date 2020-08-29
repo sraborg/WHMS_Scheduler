@@ -12,7 +12,7 @@ for i in range(10):
     tb.add_dependencies(["t1", "t2"])
     tb.add_dynamic_tasks([("T1", lambda: True)])
 
-    sys.add_task(tb.get_task())
+    sys.add_task(tb.build_task())
 
 sys.set_scheduler("DumMy")
 sys.schedule_tasks()
