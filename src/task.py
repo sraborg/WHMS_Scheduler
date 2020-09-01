@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from datetime import datetime
+from typing import Optional, List, Tuple
 import copy           # Used in task_builder to fix error with getTask
+from nu import NuFactory, NuRegression
 from analysis import AnalysisFactory
 from analysis import AbstractAnalysis                      # Type Hint
 from nu import AbstractNu                                  # Type Hint
@@ -8,61 +10,95 @@ from nu import NuRegression
 from time import sleep
 
 
-class TaskBuilderInterface(ABC):
+class AbstractTaskBuilder(ABC):
 
-    @abstractmethod
+    def __init__(self):
+        self._analysis: Optional[AbstractAnalysis] = None
+        self._nu: Optional[AbstractNu] = None
+        self._earliest_start: datetime = None
+        self._soft_deadline: datetime = None
+        self._hard_deadline: datetime = None
+        self._dependent_tasks = None
+        self._dynamic_tasks = None  # potential tasks
+        self._new_tasks = None
+        self.reset()
+
     def reset(self):
-        pass
+        self._analysis = None
+        self._nu = NuRegression()                       # Defaults to Regression
+        self._earliest_start = None
+        self._soft_deadline = None
+        self._hard_deadline = None
+        self._dependent_tasks = None
+        self._dynamic_tasks = None  # potential tasks
+        self._new_tasks = None
 
     @abstractmethod
-    def get_task(self):
+    def build_task(self):
         pass
 
-    @abstractmethod
     def set_analysis(self, analysis_type: str):
-        pass
+        self._analysis = AnalysisFactory.get_analysis(analysis_type)
 
-    @abstractmethod
-    def set_soft_deadline(self, deadline: int):
-        pass
+    def set_nu(self, method: str) -> None:
+        self._nu = NuFactory.get_nu("Regression")
 
-    @abstractmethod
-    def set_hard_deadline(self, deadline: int):
-        pass
+    def fit_model(self, values: List[Tuple[datetime, int]]):
+        self._nu.fit_model(values)
 
-    @abstractmethod
+    def set_earliest_start(self, start_time: datetime):
+        self._earliest_start = start_time
+
+    def set_soft_deadline(self, time):
+        self._soft_deadline = time
+
+    def set_hard_deadline(self, time):
+        self._hard_deadline = time
+
     def add_dependencies(self, dependencies):
-        pass
+        self._dependent_tasks = dependencies
+
+    def add_dynamic_tasks(self, tasks):
+        self._dynamic_tasks = tasks
 
     # Accessors Methods
-    @abstractmethod
-    def analysis(self) -> AbstractAnalysis:
-        pass
+    @property
+    def analysis(self):
+        return self._analysis
 
-    @abstractmethod
-    def soft_deadline(self) -> int:
-        pass
+    @property
+    def nu(self):
+        return self._nu
 
-    @abstractmethod
-    def hard_deadline(self) -> int:
-        pass
+    @property
+    def earliest_start(self) -> datetime:
+        return self._earliest_start
 
-    @abstractmethod
+    @property
+    def soft_deadline(self) -> datetime:
+        return self._soft_deadline
+
+    @property
+    def hard_deadline(self) -> datetime:
+        return self._hard_deadline
+
+    @property
     def dependent_tasks(self):
-        pass
+        return self._dependent_tasks
 
-    @abstractmethod
+    @property
     def dynamic_tasks(self):
-        pass
+        return self._dynamic_tasks
 
 
 class AbstractTask(ABC):
 
-    def __init__(self, builder: TaskBuilderInterface):
+    def __init__(self, builder: AbstractTaskBuilder):
         self._analysis = builder.analysis
         self._nu = builder.nu
-        self._soft_deadline = builder.soft_deadline
-        self._hard_deadline = builder.hard_deadline
+        self._earliest_start: datetime = builder.earliest_start
+        self._soft_deadline: datetime = builder.soft_deadline
+        self._hard_deadline: datetime = builder.hard_deadline
         self._cost = None
         self._dependent_tasks = builder.dependent_tasks
         self._dynamic_tasks = builder.dynamic_tasks        # potential tasks
@@ -85,12 +121,27 @@ class AbstractTask(ABC):
         self._analysis = analysis
 
     @property
-    def deadline(self):
-        return self._deadline
+    def earliest_start(self) -> datetime:
+        return self._earliest_start
 
-    @deadline.setter
-    def deadline(self, deadline):
-        self._deadline = deadline
+    @earliest_start.setter
+    def earliest_start(self, deadline: datetime):
+        self._earliest_start = deadline
+    @property
+    def soft_deadline(self) -> datetime:
+        return self._soft_deadline
+
+    @soft_deadline.setter
+    def soft_deadline(self, deadline: datetime):
+        self._soft_deadline = deadline
+
+    @property
+    def hard_deadline(self) -> datetime:
+        return self._hard_deadline
+
+    @hard_deadline.setter
+    def hard_deadline(self, deadline: datetime):
+        self._hard_deadline = deadline
 
     @property
     def dependent_tasks(self):
@@ -116,89 +167,70 @@ class AbstractTask(ABC):
     def future_tasks(self, tasks):
         self._future_tasks = tasks
 
+    @property
+    def wcet(self):
+        return self._analysis.wcet
+
+    @property
+    def wcbu(self):
+        return self._analysis.wcbu
+
     def execute(self):
         self._analysis.execute()
 
-    @abstractmethod
     def value(self):
-        pass
+        return self._nu.eval(datetime.now().timestamp())
 
 
 class CustomTask(AbstractTask):
 
-    def __init__(self, builder: TaskBuilderInterface):
+    def __init__(self, builder: AbstractTaskBuilder):
         super().__init__(builder)
-
-    def value(self):
-        return 1
 
 
 class DummyTask(AbstractTask):
 
-    def __init__(self):
-        super().__init__()
-        self._runtime = 5
+    def __init__(self, runtime=5):
+        #super().__init__()
+        self.runtime = runtime
 
-    def run(self):
-        sleep(self._runtime)
+    def execute(self):
+        sleep(self.runtime)
+
+    def value(self):
+        return 0
 
 
 class ScheduledTask:
 
     def __init__(self, task: AbstractTask, queue_time):
-        self.task = task
-        self.queue_time = queue_time
-        self.release_time = None
-        self.completion_time = None
-        self.execution_time = None
+        self._task = task
+        self.queue_time: datetime = queue_time
+        self.release_time: datetime = None
+        self.completion_time: datetime = None
+        self.execution_time: datetime = None
+
+    @property
+    def wcet(self):
+        return self._task.wcet
+
+    @property
+    def hard_deadline(self):
+        return self._task.hard_deadline
 
     def value(self):
-        return self.task.value()
+        return self._task.value()
 
     def execute(self):
-        self.task.execute()
+        self._task.execute()
 
 
-class TaskBuilder(TaskBuilderInterface):
+class TaskBuilder(AbstractTaskBuilder):
 
     def __init__(self):
-        self._analysis: Optional[AbstractAnalysis] = None
-        self._nu: Optional[AbstractNu] = None
-        self._soft_deadline = None
-        self._hard_deadline = None
-        self._dependent_tasks = None
-        self._dynamic_tasks = None  # potential tasks
-        self._new_tasks = None
-        self.reset()
+        super().__init__()
 
-    def reset(self):
-        self._analysis = None
-        self._nu = NuRegression()                       # Defaults to Regression
-        self._soft_deadline = None
-        self._soft_deadline = None
-        self._dependent_tasks = None
-        self._dynamic_tasks = None  # potential tasks
-        self._new_tasks = None
-
-    def set_analysis(self, analysis_type: str):
-        self._analysis = AnalysisFactory.get_analysis(analysis_type)
-
-    def set_nu(self, method: AbstractNu) -> None:
-        self._nu = method
-
-    def set_soft_deadline(self, deadline):
-        self._deadline = deadline
-
-    def set_hard_deadline(self, deadline):
-        self._hard_deadline = deadline
-
-    def add_dependencies(self, dependencies):
-        self._dependent_tasks = dependencies
-
-    def add_dynamic_tasks(self, tasks):
-        self._dynamic_tasks = tasks
-
-    def get_task(self):
+    def build_task(self):
 
         build_order = copy.copy(self)
         task = CustomTask(build_order)                    # Temp Fix for reference issue
@@ -212,30 +244,6 @@ class TaskBuilder(TaskBuilderInterface):
 
         self.reset()
         return task
-
-    @property
-    def analysis(self):
-        return self._analysis
-
-    @property
-    def nu(self):
-        return self._nu
-
-    @property
-    def soft_deadline(self) -> int:
-        return self._soft_deadline
-
-    @property
-    def hard_deadline(self) -> int:
-        return self._hard_deadline
-
-    @property
-    def dependent_tasks(self):
-        return self._dependent_tasks
-
-    @property
-    def dynamic_tasks(self):
-        return self._dynamic_tasks
 
 
 class TaskDecorator(ABC):
@@ -260,7 +268,7 @@ class TaskDecorator(ABC):
         return self._task.nu
 
     @nu.setter
-    def cost(self, method):
+    def nu(self, method):
         self._task.nu = method
 
     @property
@@ -268,16 +276,31 @@ class TaskDecorator(ABC):
         return self._task.analysis
 
     @analysis.setter
-    def deadline(self, analysis_type):
+    def analysis(self, analysis_type):
         self._task.analysis = analysis_type
 
     @property
-    def deadline(self):
-        return self._task.deadline
+    def earliest_start(self):
+        return self._task.earliest_start
 
-    @deadline.setter
-    def deadline(self, deadline):
-        self._task.deadline = deadline
+    @earliest_start.setter
+    def earliest_start(self, deadline):
+        self._task.earliest_start = deadline
+    @property
+    def soft_deadline(self):
+        return self._task.soft_deadline
+
+    @soft_deadline.setter
+    def soft_deadline(self, deadline):
+        self._task.soft_deadline = deadline
+
+    @property
+    def hard_deadline(self):
+        return self._task.hard_deadline
+
+    @hard_deadline.setter
+    def hard_deadline(self, deadline):
+        self._task.hard_deadline = deadline
 
     @property
     def dependent_tasks(self):
@@ -302,6 +325,14 @@ class TaskDecorator(ABC):
     @future_tasks.setter
     def future_tasks(self, tasks):
         self._task.future_tasks = tasks
+
+    @property
+    def wcet(self):
+        return self._task.wcet
+
+    @property
+    def wcbu(self):
+        return self._task.wcbu
 
     def execute(self):
         self._task.execute()
