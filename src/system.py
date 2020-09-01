@@ -11,7 +11,7 @@ class System:
         self._scheduler = None
         self._tasks: List[ScheduledTask] = []
         self._schedule = []
-        self._interval = 5000
+        self._interval = .5            # in Seconds
 
     def add_task(self, task: AbstractTask):
         queue_time = datetime.now()
@@ -26,7 +26,6 @@ class System:
             task.completion_time = datetime.now()
             task.execution_time = task.completion_time - task.release_time
             total += task.value()
-            print("taskold value: " + str(task.value()))
         # self._after()
 
         print("Completed " + str(len(self._schedule)) + " tasks for total value of " + str(total))
@@ -38,5 +37,5 @@ class System:
         self._scheduler = SchedulerFactory.get_scheduler(name)
 
     def schedule_tasks(self):
-       self._schedule = self._scheduler.schedule_tasks(self._tasks)
+       self._schedule = self._scheduler.schedule_tasks(self._tasks, self._interval)
 

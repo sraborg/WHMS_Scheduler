@@ -167,6 +167,14 @@ class AbstractTask(ABC):
     def future_tasks(self, tasks):
         self._future_tasks = tasks
 
+    @property
+    def wcet(self):
+        return self._analysis.wcet
+
+    @property
+    def wcbu(self):
+        return self._analysis.wcbu
+
     def execute(self):
         self._analysis.execute()
 
@@ -182,12 +190,12 @@ class CustomTask(AbstractTask):
 
 class DummyTask(AbstractTask):
 
-    def __init__(self):
-        super().__init__()
-        self._runtime = 5
+    def __init__(self, runtime=5):
+        #super().__init__()
+        self.runtime = runtime
 
     def execute(self):
-        sleep(self._runtime)
+        sleep(self.runtime)
 
     def value(self):
         return 0
@@ -196,17 +204,25 @@ class DummyTask(AbstractTask):
 class ScheduledTask:
 
     def __init__(self, task: AbstractTask, queue_time):
-        self.task = task
+        self._task = task
         self.queue_time: datetime = queue_time
         self.release_time: datetime = None
         self.completion_time: datetime = None
         self.execution_time: datetime = None
 
+    @property
+    def wcet(self):
+        return self._task.wcet
+
+    @property
+    def hard_deadline(self):
+        return self._task.hard_deadline
+
     def value(self):
-        return self.task.value()
+        return self._task.value()
 
     def execute(self):
-        self.task.execute()
+        self._task.execute()
 
 
 class TaskBuilder(AbstractTaskBuilder):
@@ -309,6 +325,14 @@ class TaskDecorator(ABC):
     @future_tasks.setter
     def future_tasks(self, tasks):
         self._task.future_tasks = tasks
+
+    @property
+    def wcet(self):
+        return self._task.wcet
+
+    @property
+    def wcbu(self):
+        return self._task.wcbu
 
     def execute(self):
         self._task.execute()

@@ -10,9 +10,9 @@ tb = TaskBuilder()
 random.seed()
 
 for i in range(10):
-    earliest_start = datetime.now() + timedelta(seconds=random.randint(0, 1000))
-    soft_deadline = earliest_start + timedelta(seconds=random.randint(0, 1000))
-    hard_deadline = earliest_start + timedelta(seconds=random.randint(0, 1000))
+    earliest_start = datetime.now() + timedelta(seconds=random.randint(0, 10))
+    soft_deadline = earliest_start + timedelta(seconds=random.randint(0, 10))
+    hard_deadline = earliest_start + timedelta(seconds=random.randint(0, 10))
 
     tb.set_earliest_start(earliest_start)
     tb.set_soft_deadline(soft_deadline)

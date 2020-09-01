@@ -39,8 +39,8 @@ class DummyAnalysis(AbstractAnalysis):
 
     def __init__(self):
         super().__init__()
-        self._wcet = 5
-        self._wcbu = 1
+        self._wcet = 5                      # in Seconds
+        self._wcbu = 1                      # in ...
 
     def execute(self):
         """This function simulates running a dummy taskold.
