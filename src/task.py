@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+from datetime import datetime
+from typing import Optional, List, Tuple
 import copy           # Used in task_builder to fix error with getTask
+from nu import NuFactory, NuRegression
 from analysis import AnalysisFactory
 from analysis import AbstractAnalysis                      # Type Hint
 from nu import AbstractNu                                  # Type Hint
@@ -13,9 +15,9 @@ class AbstractTaskBuilder(ABC):
     def __init__(self):
         self._analysis: Optional[AbstractAnalysis] = None
         self._nu: Optional[AbstractNu] = None
-        self._earliest_start = None
-        self._soft_deadline = None
-        self._hard_deadline = None
+        self._earliest_start: datetime = None
+        self._soft_deadline: datetime = None
+        self._hard_deadline: datetime = None
         self._dependent_tasks = None
         self._dynamic_tasks = None  # potential tasks
         self._new_tasks = None
@@ -38,11 +40,14 @@ class AbstractTaskBuilder(ABC):
     def set_analysis(self, analysis_type: str):
         self._analysis = AnalysisFactory.get_analysis(analysis_type)
 
-    def set_nu(self, method: AbstractNu) -> None:
-        self._nu = method
+    def set_nu(self, method: str) -> None:
+        self._nu = NuFactory.get_nu("Regression")
 
-    def set_earliest_start(self, time):
-        self._earliest_start = time
+    def fit_model(self, values: List[Tuple[datetime, int]]):
+        self._nu.fit_model(values)
+
+    def set_earliest_start(self, start_time: datetime):
+        self._earliest_start = start_time
 
     def set_soft_deadline(self, time):
         self._soft_deadline = time
@@ -66,15 +71,15 @@ class AbstractTaskBuilder(ABC):
         return self._nu
 
     @property
-    def earliest_start(self) -> int:
+    def earliest_start(self) -> datetime:
         return self._earliest_start
 
     @property
-    def soft_deadline(self) -> int:
+    def soft_deadline(self) -> datetime:
         return self._soft_deadline
 
     @property
-    def hard_deadline(self) -> int:
+    def hard_deadline(self) -> datetime:
         return self._hard_deadline
 
     @property
@@ -91,9 +96,9 @@ class AbstractTask(ABC):
     def __init__(self, builder: AbstractTaskBuilder):
         self._analysis = builder.analysis
         self._nu = builder.nu
-        self._earliest_start = builder.earliest_start
-        self._soft_deadline = builder.soft_deadline
-        self._hard_deadline = builder.hard_deadline
+        self._earliest_start: datetime = builder.earliest_start
+        self._soft_deadline: datetime = builder.soft_deadline
+        self._hard_deadline: datetime = builder.hard_deadline
         self._cost = None
         self._dependent_tasks = builder.dependent_tasks
         self._dynamic_tasks = builder.dynamic_tasks        # potential tasks
@@ -116,12 +121,27 @@ class AbstractTask(ABC):
         self._analysis = analysis
 
     @property
-    def deadline(self):
-        return self._deadline
+    def earliest_start(self) -> datetime:
+        return self._earliest_start
 
-    @deadline.setter
-    def deadline(self, deadline):
-        self._deadline = deadline
+    @earliest_start.setter
+    def earliest_start(self, deadline: datetime):
+        self._earliest_start = deadline
+    @property
+    def soft_deadline(self) -> datetime:
+        return self._soft_deadline
+
+    @soft_deadline.setter
+    def soft_deadline(self, deadline: datetime):
+        self._soft_deadline = deadline
+
+    @property
+    def hard_deadline(self) -> datetime:
+        return self._hard_deadline
+
+    @hard_deadline.setter
+    def hard_deadline(self, deadline: datetime):
+        self._hard_deadline = deadline
 
     @property
     def dependent_tasks(self):
@@ -150,18 +170,14 @@ class AbstractTask(ABC):
     def execute(self):
         self._analysis.execute()
 
-    @abstractmethod
     def value(self):
-        pass
+        return self._nu.eval(datetime.now().timestamp())
 
 
 class CustomTask(AbstractTask):
 
     def __init__(self, builder: AbstractTaskBuilder):
         super().__init__(builder)
-
-    def value(self):
-        return 1
 
 
 class DummyTask(AbstractTask):
@@ -170,18 +186,21 @@ class DummyTask(AbstractTask):
         super().__init__()
         self._runtime = 5
 
-    def run(self):
+    def execute(self):
         sleep(self._runtime)
+
+    def value(self):
+        return 0
 
 
 class ScheduledTask:
 
     def __init__(self, task: AbstractTask, queue_time):
         self.task = task
-        self.queue_time = queue_time
-        self.release_time = None
-        self.completion_time = None
-        self.execution_time = None
+        self.queue_time: datetime = queue_time
+        self.release_time: datetime = None
+        self.completion_time: datetime = None
+        self.execution_time: datetime = None
 
     def value(self):
         return self.task.value()
@@ -233,7 +252,7 @@ class TaskDecorator(ABC):
         return self._task.nu
 
     @nu.setter
-    def cost(self, method):
+    def nu(self, method):
         self._task.nu = method
 
     @property
@@ -245,12 +264,27 @@ class TaskDecorator(ABC):
         self._task.analysis = analysis_type
 
     @property
-    def deadline(self):
-        return self._task.deadline
+    def earliest_start(self):
+        return self._task.earliest_start
 
-    @deadline.setter
-    def deadline(self, deadline):
-        self._task.deadline = deadline
+    @earliest_start.setter
+    def earliest_start(self, deadline):
+        self._task.earliest_start = deadline
+    @property
+    def soft_deadline(self):
+        return self._task.soft_deadline
+
+    @soft_deadline.setter
+    def soft_deadline(self, deadline):
+        self._task.soft_deadline = deadline
+
+    @property
+    def hard_deadline(self):
+        return self._task.hard_deadline
+
+    @hard_deadline.setter
+    def hard_deadline(self, deadline):
+        self._task.hard_deadline = deadline
 
     @property
     def dependent_tasks(self):
