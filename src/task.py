@@ -190,9 +190,16 @@ class CustomTask(AbstractTask):
 
 class DummyTask(AbstractTask):
 
-    def __init__(self, runtime=5):
-        #super().__init__()
-        self.runtime = runtime
+    def __init__(self, builder: AbstractTaskBuilder = None, **kwargs):
+
+        if builder is None:
+            builder = DummyTaskBuilder()
+
+        super().__init__(builder)
+        if "runtime" in kwargs:
+            self.runtime = kwargs.get("runtime")
+        else:
+            self.runtime = 5
 
     def execute(self):
         sleep(self.runtime)
@@ -224,6 +231,12 @@ class ScheduledTask:
     def execute(self):
         self._task.execute()
 
+    def get_task_type(self):
+        return type(self._task)
+
+    def get_dependencies(self):
+        return copy.copy(self._task.dependent_tasks)
+
 
 class TaskBuilder(AbstractTaskBuilder):
 
@@ -245,6 +258,15 @@ class TaskBuilder(AbstractTaskBuilder):
         self.reset()
         return task
 
+
+class DummyTaskBuilder(AbstractTaskBuilder):
+
+    def __init__(self):
+        super().__init__()
+
+    def build_task(self):
+        task = CustomTask(self)  # Temp Fix for reference issue
+        return task
 
 class TaskDecorator(ABC):
 
