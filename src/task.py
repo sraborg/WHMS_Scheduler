@@ -18,7 +18,7 @@ class AbstractTaskBuilder(ABC):
         self._earliest_start: datetime = None
         self._soft_deadline: datetime = None
         self._hard_deadline: datetime = None
-        self._dependent_tasks = None
+        self._dependent_tasks = []
         self._dynamic_tasks = None  # potential tasks
         self._new_tasks = None
         self.reset()
@@ -29,7 +29,7 @@ class AbstractTaskBuilder(ABC):
         self._earliest_start = None
         self._soft_deadline = None
         self._hard_deadline = None
-        self._dependent_tasks = None
+        self._dependent_tasks = []
         self._dynamic_tasks = None  # potential tasks
         self._new_tasks = None
 
@@ -100,7 +100,7 @@ class AbstractTask(ABC):
         self._soft_deadline: datetime = builder.soft_deadline
         self._hard_deadline: datetime = builder.hard_deadline
         self._cost = None
-        self._dependent_tasks = builder.dependent_tasks
+        self._dependent_tasks: List[AbstractTask] = builder.dependent_tasks
         self._dynamic_tasks = builder.dynamic_tasks        # potential tasks
         self._future_tasks = []                           # Tasks
 
@@ -181,6 +181,20 @@ class AbstractTask(ABC):
     def value(self):
         return self._nu.eval(datetime.now().timestamp())
 
+    def has_dependencies(self):
+        return not not self._dependent_tasks
+
+    def is_dependency(self, task):
+        result = False
+        for dependency in self._dependent_tasks:
+            if task is dependency:
+                result = True
+                break
+        return result
+
+    def add_dependency(self, dependency):
+        self._dependent_tasks.append(dependency)
+
 
 class CustomTask(AbstractTask):
 
@@ -237,6 +251,14 @@ class ScheduledTask:
     def get_dependencies(self):
         return copy.copy(self._task.dependent_tasks)
 
+    def has_dependencies(self):
+        return self._task.has_dependencies()
+
+    def is_dependency(self, task):
+        return self._task.is_dependency(task)
+
+    def add_dependency(self, dependency: AbstractTask):
+        self._task.add_dependency(dependency)
 
 class TaskBuilder(AbstractTaskBuilder):
 
@@ -259,6 +281,11 @@ class TaskBuilder(AbstractTaskBuilder):
         return task
 
 
+''' Builder for Generating DummyTasks 
+
+'''
+
+
 class DummyTaskBuilder(AbstractTaskBuilder):
 
     def __init__(self):
@@ -267,6 +294,7 @@ class DummyTaskBuilder(AbstractTaskBuilder):
     def build_task(self):
         task = CustomTask(self)  # Temp Fix for reference issue
         return task
+
 
 class TaskDecorator(ABC):
 
@@ -359,6 +387,14 @@ class TaskDecorator(ABC):
     def execute(self):
         self._task.execute()
 
+    def has_dependencies(self):
+        return self._task.has_dependencies()
+
+    def is_dependency(self, task):
+        return self._task.is_dependency(task)
+
+    def add_dependency(self, dependency):
+        self._task.add_dependency(dependency)
 
 class TaskWithDependencies(TaskDecorator):
 

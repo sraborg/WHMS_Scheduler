@@ -20,11 +20,17 @@ for i in range(10):
     tb.set_nu("Regression")
     tb.fit_model([(earliest_start.timestamp(), 0), (soft_deadline.timestamp(), random.randint(0, 1000)), (hard_deadline.timestamp(), 0)])
 
+
     tb.set_analysis("duMmY")
-    tb.add_dependencies(["t1", "t2"])
+
+
+    #tb.add_dependencies(["t1", "t2"])
     tb.add_dynamic_tasks([("T1", lambda: True)])
 
-    sys.add_task(tb.build_task())
+    task = tb.build_task()
+    if i > 0 and random.randint(0, 1) is 1:
+        task.add_dependency(sys._tasks[i-1])
+    sys.add_task(task)
 
 sys.set_scheduler("DumMy")
 sys.schedule_tasks()

@@ -21,6 +21,10 @@ class System:
         # self._before()
         total = 0
         for task in self._schedule:
+
+            # Check for dependencies
+            if task.has_dependencies():
+                raise Exception("Attempting to run task " + str(id(task)) + " before dependencies")
             task.release_time = datetime.now()
             task.execute()
             task.completion_time = datetime.now()

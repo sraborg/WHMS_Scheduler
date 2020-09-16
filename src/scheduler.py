@@ -35,9 +35,35 @@ class AbstractScheduler(ABC):
         # Generated Scheduled Dummy Tasks
         dummy_tasks = []
         for x in range(num_dummy_tasks):
-            dummy_tasks.append(ScheduledTask(DummyTask(interval), datetime.now().timestamp()))
+            dummy_tasks.append(ScheduledTask(DummyTask(None, runtime=interval), datetime.now().timestamp()))
 
         return tasklist + dummy_tasks
+
+    '''Checks if Schedule is consistent with dependencies (e.g. no task is scheduled before any of its dependencies)
+    
+    '''
+    def _verify_dependencies(self, tasklist: List[ScheduledTask]) -> bool:
+
+        for i, task in enumerate(tasklist):
+            completed_tasks = tasklist[:i-1]
+
+            # Skip iteration if task is a DummyTask
+            if not isinstance(task.get_task_type(), DummyTask):
+                continue
+
+        return True
+
+
+    ''' Verifies each dependency in dependency list is in tasklist'''
+
+    def _verify_dependency(self, dependency: AbstractTask, completed_tasks: List[ScheduledTask]) -> bool:
+
+        for task in completed_tasks:
+            if not task.is_dependency(task):
+                return False
+
+        return True
+
     @abstractmethod
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         pass
@@ -50,5 +76,11 @@ class DummyScheduler(AbstractScheduler):
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
         new_tasklist = self.generate_dummy_tasks(tasklist, interval)
+        valid = False
+        schedule = None
+        while not valid:
+            schedule = random.sample(new_tasklist, len(new_tasklist))
+            #if self._check_dependencies(schedule):
+            valid = True
 
-        return random.sample(new_tasklist, len(new_tasklist))
+        return schedule
