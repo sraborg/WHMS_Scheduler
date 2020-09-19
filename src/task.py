@@ -21,6 +21,7 @@ class AbstractTaskBuilder(ABC):
         self._dependent_tasks = []
         self._dynamic_tasks = None  # potential tasks
         self._new_tasks = None
+        self._periodic = False
         self.reset()
 
     def reset(self):
@@ -32,6 +33,7 @@ class AbstractTaskBuilder(ABC):
         self._dependent_tasks = []
         self._dynamic_tasks = None  # potential tasks
         self._new_tasks = None
+        self._periodic = False
 
     @abstractmethod
     def build_task(self):
@@ -54,6 +56,9 @@ class AbstractTaskBuilder(ABC):
 
     def set_hard_deadline(self, time):
         self._hard_deadline = time
+
+    def set_periodic(self):
+        self._periodic = True
 
     def add_dependencies(self, dependencies):
         self._dependent_tasks = dependencies
@@ -186,6 +191,9 @@ class AbstractTask(ABC):
 
     def is_dependency(self, task):
         result = False
+        if isinstance(task, ScheduledTask):
+            task = task._task
+
         for dependency in self._dependent_tasks:
             if task is dependency:
                 result = True
@@ -194,6 +202,22 @@ class AbstractTask(ABC):
 
     def add_dependency(self, dependency):
         self._dependent_tasks.append(dependency)
+
+    '''Removes a task from dependency list if present. Otherwise, does nothing
+    
+    '''
+
+    def remove_dependency(self, dependency):
+        if self.is_dependency(dependency):
+            self._dependent_tasks.remove(dependency)
+        else:
+            return
+
+    def is_dummy(self):
+        return isinstance(self, DummyTask)
+
+    def is_periodic(self):
+        return False
 
 
 class CustomTask(AbstractTask):
@@ -220,80 +244,6 @@ class DummyTask(AbstractTask):
 
     def value(self):
         return 0
-
-
-class ScheduledTask:
-
-    def __init__(self, task: AbstractTask, queue_time):
-        self._task = task
-        self.queue_time: datetime = queue_time
-        self.release_time: datetime = None
-        self.completion_time: datetime = None
-        self.execution_time: datetime = None
-
-    @property
-    def wcet(self):
-        return self._task.wcet
-
-    @property
-    def hard_deadline(self):
-        return self._task.hard_deadline
-
-    def value(self):
-        return self._task.value()
-
-    def execute(self):
-        self._task.execute()
-
-    def get_task_type(self):
-        return type(self._task)
-
-    def get_dependencies(self):
-        return copy.copy(self._task.dependent_tasks)
-
-    def has_dependencies(self):
-        return self._task.has_dependencies()
-
-    def is_dependency(self, task):
-        return self._task.is_dependency(task)
-
-    def add_dependency(self, dependency: AbstractTask):
-        self._task.add_dependency(dependency)
-
-class TaskBuilder(AbstractTaskBuilder):
-
-    def __init__(self):
-        super().__init__()
-
-    def build_task(self):
-
-        build_order = copy.copy(self)
-        task = CustomTask(build_order)                    # Temp Fix for reference issue
-
-        # Use decorators to add dependencies / dynamic tasks
-        if self._dependent_tasks is not None:
-            task = TaskWithDependencies(task)
-
-        if self._dynamic_tasks is not None:
-            task = TaskWithDynamicTasks(task)
-
-        self.reset()
-        return task
-
-
-''' Builder for Generating DummyTasks 
-
-'''
-
-
-class DummyTaskBuilder(AbstractTaskBuilder):
-
-    def __init__(self):
-        super().__init__()
-
-    def build_task(self):
-        task = CustomTask(self)  # Temp Fix for reference issue
-        return task
 
 
 class TaskDecorator(ABC):
@@ -390,11 +340,53 @@ class TaskDecorator(ABC):
     def has_dependencies(self):
         return self._task.has_dependencies()
 
+    def get_dependencies(self):
+        return copy.copy(self._task.dependent_tasks)
+
     def is_dependency(self, task):
         return self._task.is_dependency(task)
 
     def add_dependency(self, dependency):
         self._task.add_dependency(dependency)
+
+    def remove_dependency(self, dependency):
+        self._task.remove_dependency(dependency)
+
+    def is_dummy(self):
+        return self._task.is_dummy()
+
+    def is_periodic(self):
+        return self._task.is_periodic()
+
+
+'''Loosely follows the Decorator Pattern. Adds new features, but must be the final "outer wrapper"
+
+'''
+
+
+class ScheduledTask(TaskDecorator):
+
+    def __init__(self, task: AbstractTask, **kwargs):
+        super().__init__(task)
+        self._task = task
+
+        if "queue_time" in kwargs:
+            self.queue_time = kwargs.get("queue_time")
+        else:
+            self.queue_time = 5
+        self.release_time: datetime = None
+        self.completion_time: datetime = None
+        self.execution_time: datetime = None
+
+
+class TaskWithPeriodicity(TaskDecorator):
+
+    def __init__(self, task: AbstractTask, **kwargs):
+        super().__init__(task)
+
+    def is_periodic(self):
+        return True
+
 
 class TaskWithDependencies(TaskDecorator):
 
@@ -419,3 +411,43 @@ class TaskWithDynamicTasks(TaskDecorator):
         for dyn_task in self.dynamic_tasks:
             if dyn_task[1]:
                 tasks = self._task.future_tasks.append(dyn_task[0])
+
+
+class TaskBuilder(AbstractTaskBuilder):
+
+    def __init__(self):
+        super().__init__()
+
+    def build_task(self):
+
+        build_order = copy.copy(self)
+        task = CustomTask(build_order)                    # Temp Fix for reference issue
+
+        if self.set_periodic():
+            task = TaskWithPeriodicity(task)
+        
+        # Use decorators to add dependencies / dynamic tasks
+        if self._dependent_tasks is not None:
+            task = TaskWithDependencies(task)
+
+        if self._dynamic_tasks is not None:
+            task = TaskWithDynamicTasks(task)
+
+        self.reset()
+        return task
+
+
+''' Builder for Generating DummyTasks 
+
+'''
+
+
+class DummyTaskBuilder(AbstractTaskBuilder):
+
+    def __init__(self):
+        super().__init__()
+
+    def build_task(self):
+        task = CustomTask(self)  # Temp Fix for reference issue
+        return task
+
