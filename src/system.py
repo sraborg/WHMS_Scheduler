@@ -26,7 +26,7 @@ class System:
         total = 0
         for i, task in enumerate(self._schedule):
 
-            '''
+
             # Check for dependencies
             if task.has_dependencies():
                 message = "Dependency Error: Attempting to run task " + str(id(task)) + " on iteration " + str(i) + ".\n"
@@ -34,14 +34,14 @@ class System:
                     index = self._schedule.index(dependency)
                     message += "Dependent task " + str(id(dependency)) + " scheduled to run on interval " + str(index)
                 raise Exception(message)
-            '''
+
             task.release_time = datetime.now()
             task.execute()
             task.completion_time = datetime.now()
             #task.execution_time = task.completion_time - task.release_time
             total += task.value()
 
-            self._schedule.remove(task)
+            #self._schedule.remove(task)
 
             if not task.is_dummy():
                 self._completed_tasks.append(task)
@@ -52,7 +52,7 @@ class System:
 
         # self._after()
 
-        print("Completed " + str(len(self._schedule)) + " tasks for total value of " + str(total))
+        print("\n============================\n Completed " + str(len(self._schedule)) + " tasks for total value of " + str(total))
 
 
     def _get_time_in_milliseconds(self) -> int:

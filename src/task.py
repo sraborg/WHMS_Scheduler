@@ -108,6 +108,10 @@ class AbstractTask(ABC):
         self._dependent_tasks: List[AbstractTask] = builder.dependent_tasks
         self._dynamic_tasks = builder.dynamic_tasks        # potential tasks
         self._future_tasks = []                           # Tasks
+        self._queue_time = None
+        self._release_time: datetime = None
+        self._completion_time: datetime = None
+        self._execution_time: datetime = None
 
     @property
     def cost(self):
@@ -132,6 +136,7 @@ class AbstractTask(ABC):
     @earliest_start.setter
     def earliest_start(self, deadline: datetime):
         self._earliest_start = deadline
+
     @property
     def soft_deadline(self) -> datetime:
         return self._soft_deadline
@@ -180,6 +185,38 @@ class AbstractTask(ABC):
     def wcbu(self):
         return self._analysis.wcbu
 
+    @property
+    def queue_time(self):
+        return self._queue_time
+
+    @queue_time.setter
+    def queue_time(self, time):
+        self._queue_time = time
+
+    @property
+    def release_time(self):
+        return self._release_time
+
+    @release_time.setter
+    def release_time(self, time):
+        self._release_time = time
+
+    @property
+    def completion_time(self):
+        return self._completion_time
+
+    @completion_time.setter
+    def completion_time(self, time):
+        self._completion_time = time
+
+    @property
+    def execution_time(self):
+        return self._execution_time
+
+    @execution_time.setter
+    def execution_time(self, time):
+        self._completion_time = time
+
     def execute(self):
         self._analysis.execute()
 
@@ -189,10 +226,11 @@ class AbstractTask(ABC):
     def has_dependencies(self):
         return not not self._dependent_tasks
 
+    def get_dependencies(self):
+        return copy.copy(self._dependent_tasks)
+
     def is_dependency(self, task):
         result = False
-        if isinstance(task, ScheduledTask):
-            task = task._task
 
         for dependency in self._dependent_tasks:
             if task is dependency:
@@ -334,6 +372,38 @@ class TaskDecorator(ABC):
     def wcbu(self):
         return self._task.wcbu
 
+    @property
+    def queue_time(self):
+        return self._task.queue_time
+
+    @queue_time.setter
+    def queue_time(self, time):
+        self._task.queue_time = time
+
+    @property
+    def release_time(self):
+        return self._task.release_time
+
+    @release_time.setter
+    def release_time(self, time):
+        self._task.release_time = time
+
+    @property
+    def completion_time(self):
+        return self._task.completion_time
+
+    @completion_time.setter
+    def completion_time(self, time):
+        self._task._completion_time = time
+
+    @property
+    def execution_time(self):
+        return self._task.execution_time
+
+    @execution_time.setter
+    def execution_time(self, time):
+        self._task.execution_time = time
+
     def execute(self):
         self._task.execute()
 
@@ -363,7 +433,7 @@ class TaskDecorator(ABC):
 
 '''
 
-
+'''
 class ScheduledTask(TaskDecorator):
 
     def __init__(self, task: AbstractTask, **kwargs):
@@ -377,7 +447,7 @@ class ScheduledTask(TaskDecorator):
         self.release_time: datetime = None
         self.completion_time: datetime = None
         self.execution_time: datetime = None
-
+'''
 
 class TaskWithPeriodicity(TaskDecorator):
 
@@ -425,7 +495,7 @@ class TaskBuilder(AbstractTaskBuilder):
 
         if self.set_periodic():
             task = TaskWithPeriodicity(task)
-        
+
         # Use decorators to add dependencies / dynamic tasks
         if self._dependent_tasks is not None:
             task = TaskWithDependencies(task)
