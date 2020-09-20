@@ -45,14 +45,10 @@ class AbstractScheduler(ABC):
     def _validate_schedule(self, tasklist: List[AbstractTask]) -> bool:
 
         result = True
-        
+        non_dummy_tasks = [task for task in tasklist if not task.is_dummy()]
         prior_tasks = []
         # Check Each scheduledTask
         for i, task in enumerate(non_dummy_tasks):
-
-            # Skip iteration if task is a DummyTask
-            if task.is_dummy():
-                continue
 
             # Check Dependencies
             if task.has_dependencies():
@@ -66,7 +62,7 @@ class AbstractScheduler(ABC):
 
     def _verify_dependencies(self, tasklist: List[AbstractTask], prior_tasks) -> bool:
 
-        for dependency in prior_tasks:
+        for dependency in tasklist:
             if not self._verify_dependency(dependency, prior_tasks):
                 return False
 
@@ -93,7 +89,7 @@ class DummyScheduler(AbstractScheduler):
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
         new_tasklist = self.generate_dummy_tasks(tasklist, interval)
-        max_iteration = 10
+        max_iteration = 100
         valid = False
         schedule = None
         i = 0

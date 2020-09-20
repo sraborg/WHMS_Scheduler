@@ -11,13 +11,19 @@ class AbstractNu(ABC):
         self._y = None              # Values
         self._model = None
         self._f = None
+        self._min_value = -0.001
 
     @abstractmethod
     def fit_model(self, values: List[Tuple[datetime, int]]):
         self._x, self._y = zip(*values)              # Time, Values
 
     def eval(self, x):
-        return self._f(x)
+        if x < min(self._x) or x > max(self._x):
+            return self._min_value
+        elif self._f(x) < 0:
+            return 0
+        else:
+            return self._f(x)
 
 
 class NuRegression(AbstractNu):
