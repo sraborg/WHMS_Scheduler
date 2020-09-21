@@ -12,7 +12,9 @@ class SchedulerFactory:
     def get_scheduler(scheduler_type: str):
         scheduler = None
 
-        if scheduler_type.upper() == "DUMMY":
+        if scheduler_type.upper() == "GENETIC":
+            scheduler = GeneticScheduler()
+        elif scheduler_type.upper() == "DUMMY":
             scheduler = DummyScheduler()
         else:
             raise Exception("Invalid Analysis Type")
@@ -81,6 +83,9 @@ class AbstractScheduler(ABC):
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         pass
 
+    def _simulate_execution(self, tasklist: List[AbstractTask]):
+        pass
+
 
 class DummyScheduler(AbstractScheduler):
 
@@ -112,9 +117,37 @@ class DummyScheduler(AbstractScheduler):
 
 class GeneticScheduler(AbstractScheduler):
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__()
+        if "max_generations" in kwargs:
+            self._max_generations = kwargs.get("max_generations")
+        else:
+            self._max_generations = 1000
+
+        if "population_size" in kwargs:
+            self._population_size = kwargs.get("population_size")
+        else:
+            self._population_size = 1000
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
+
+        population = []
+
+        for x in range(self._population_size):
+            population.append(random.sample(tasklist, len(tasklist)))
+
+        for x in range(self._max_generations):
+            self.selection()
+            self.crossover()
+            self.mutation()
+
+        return tasklist
+
+    def selection(self):
         pass
 
+    def crossover(self):
+        pass
+
+    def mutation(self):
+        pass

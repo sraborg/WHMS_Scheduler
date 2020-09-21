@@ -449,6 +449,7 @@ class ScheduledTask(TaskDecorator):
         self.execution_time: datetime = None
 '''
 
+
 class TaskWithPeriodicity(TaskDecorator):
 
     def __init__(self, task: AbstractTask, **kwargs):

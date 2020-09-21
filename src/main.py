@@ -32,6 +32,6 @@ for i in range(10):
         task.add_dependency(sys._tasks[i-1])
     sys.add_task(task)
 
-sys.set_scheduler("DumMy")
+sys.set_scheduler("genetic")
 sys.schedule_tasks()
-sys.execute_schedule()
+#sys.execute_schedule()

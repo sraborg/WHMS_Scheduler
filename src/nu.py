@@ -33,7 +33,8 @@ class NuRegression(AbstractNu):
 
     def fit_model(self, values: List[Tuple[datetime, int]]):
         super().fit_model(values)
-        self._model = np.polyfit(list(self._x), list(self._y), len(self._y) - 1)
+        rank = len(self._y) - 2
+        self._model = np.polyfit(list(self._x), list(self._y), rank)
         self._f = np.poly1d(self._model)
 
 

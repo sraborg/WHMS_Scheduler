@@ -62,5 +62,5 @@ class System:
         self._scheduler = SchedulerFactory.get_scheduler(name)
 
     def schedule_tasks(self):
-       self._schedule = self._scheduler.schedule_tasks(self._tasks, self._interval)
+        self._schedule = self._scheduler.schedule_tasks(self._tasks, self._interval)
 
