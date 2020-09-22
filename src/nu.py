@@ -7,7 +7,7 @@ from typing import List, Tuple
 class AbstractNu(ABC):
 
     def __init__(self):
-        self._x = None              # DateTime
+        self._x = None              # Timestamps
         self._y = None              # Values
         self._model = None
         self._f = None

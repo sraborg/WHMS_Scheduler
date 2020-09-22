@@ -26,7 +26,6 @@ class System:
         total = 0
         for i, task in enumerate(self._schedule):
 
-
             # Check for dependencies
             if task.has_dependencies():
                 message = "Dependency Error: Attempting to run task " + str(id(task)) + " on iteration " + str(i) + ".\n"

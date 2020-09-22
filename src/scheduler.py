@@ -84,7 +84,16 @@ class AbstractScheduler(ABC):
         pass
 
     def _simulate_execution(self, tasklist: List[AbstractTask]):
-        pass
+        time = datetime.now().timestamp()
+        total_value = 0
+
+        for task in tasklist:
+            if not task.is_dummy():
+                total_value += task.value(timestamp=time)
+
+            time += task.wcet
+
+        return total_value
 
 
 class DummyScheduler(AbstractScheduler):
@@ -129,22 +138,44 @@ class GeneticScheduler(AbstractScheduler):
         else:
             self._population_size = 1000
 
+        self._invalid_schedule_value = -1000.0
+        self._breeding_percentage = .05
+
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
 
         population = []
 
+        # Initialize Population
         for x in range(self._population_size):
             population.append(random.sample(tasklist, len(tasklist)))
 
         for x in range(self._max_generations):
-            self.selection()
+            values = []
+            for schedule in population:
+                values.append(self.fitness(schedule))
+            sample = self.selection(population, values)
             self.crossover()
             self.mutation()
 
         return tasklist
 
-    def selection(self):
-        pass
+    def fitness(self, schedule):
+
+        if not self._validate_schedule(schedule):
+            return self._invalid_schedule_value
+        else:
+            return self._simulate_execution(schedule)
+
+    def selection(self, population, value):
+        sample = list(zip(population, value))
+        sorted_sample = sorted(sample,
+                               key=lambda item: item[1],
+                               reverse=True)
+        new_sorted_sample, _ = list(zip(*sorted_sample))
+        cutoff = ceil(len(sorted_sample)*self._breeding_percentage)
+        parent_sample = new_sorted_sample[:cutoff]
+
+        return parent_sample
 
     def crossover(self):
         pass

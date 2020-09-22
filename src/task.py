@@ -220,8 +220,12 @@ class AbstractTask(ABC):
     def execute(self):
         self._analysis.execute()
 
-    def value(self):
-        return self._nu.eval(datetime.now().timestamp())
+    def value(self, **kwargs):
+        if "timestamp" in kwargs:
+            timestamp = kwargs.get("timestamp")
+        else:
+            timestamp = datetime.now().timestamp()
+        return self._nu.eval(timestamp)
 
     def has_dependencies(self):
         return not not self._dependent_tasks
@@ -280,7 +284,7 @@ class DummyTask(AbstractTask):
     def execute(self):
         sleep(self.runtime)
 
-    def value(self):
+    def value(self, **kwargs):
         return 0
 
 
@@ -290,8 +294,8 @@ class TaskDecorator(ABC):
         super().__init__()
         self._task = task
 
-    def value(self):
-        return self._task.value()
+    def value(self, **kwargs):
+        return self._task.value(**kwargs)
 
     @property
     def cost(self):
