@@ -35,3 +35,7 @@ for i in range(10):
 sys.set_scheduler("genetic")
 sys.schedule_tasks()
 sys.execute_schedule()
+
+sys.set_scheduler("dummy")
+sys.schedule_tasks()
+sys.execute_schedule()

@@ -131,7 +131,7 @@ class GeneticScheduler(AbstractScheduler):
         if "max_generations" in kwargs:
             self._max_generations = kwargs.get("max_generations")
         else:
-            self._max_generations = 1000
+            self._max_generations = 25
 
         if "population_size" in kwargs:
             self._population_size = kwargs.get("population_size")
@@ -140,24 +140,26 @@ class GeneticScheduler(AbstractScheduler):
 
         self._invalid_schedule_value = -1000.0
         self._breeding_percentage = .05
+        self._mutation_rate = 0.01
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
 
         population = []
+        print("Generating Schedule Using Genetic Algorithm")
 
         # Initialize Population
         for x in range(self._population_size):
             population.append(random.sample(tasklist, len(tasklist)))
 
         for x in range(self._max_generations):
-            values = []
-            for schedule in population:
-                values.append(self.fitness(schedule))
-            sample = self.selection(population, values)
-            self.crossover()
-            self.mutation()
+            print("Processing Generation " + str(x))
 
-        return tasklist
+            breeding_sample = self.selection(population)
+            next_generation = self.crossover(breeding_sample, len(population))
+            population = self.mutation(next_generation)
+
+        best_schedule = self.selection(population)[0]
+        return best_schedule
 
     def fitness(self, schedule):
 
@@ -166,8 +168,12 @@ class GeneticScheduler(AbstractScheduler):
         else:
             return self._simulate_execution(schedule)
 
-    def selection(self, population, value):
-        sample = list(zip(population, value))
+    def selection(self, population, **kwargs):
+        values = []
+        for schedule in population:
+            values.append(self.fitness(schedule))
+
+        sample = list(zip(population, values))
         sorted_sample = sorted(sample,
                                key=lambda item: item[1],
                                reverse=True)
@@ -177,8 +183,25 @@ class GeneticScheduler(AbstractScheduler):
 
         return parent_sample
 
-    def crossover(self):
-        pass
+    def crossover(self, parents, population_size):
+        next_generation = []
 
-    def mutation(self):
-        pass
+        for x in range(population_size):
+            p1, p2 = random.sample(parents, 2)
+            midpoint = ceil(len(p1)/2)
+            child = p1[:midpoint] + p2[midpoint:]
+            next_generation.append(child)
+
+        return next_generation
+
+    def mutation(self, population):
+
+        for schedule in population:
+            for i, task in enumerate(schedule):
+                if random.random() <= self._mutation_rate:
+                    next_index = random.randint(0, len(schedule)-1)
+                    temp = task
+                    schedule[i] = schedule[next_index]
+                    schedule[next_index] = temp
+
+        return population
