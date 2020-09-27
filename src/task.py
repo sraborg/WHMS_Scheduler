@@ -464,6 +464,9 @@ class TaskDecorator(ABC):
     def is_dummy(self):
         return self._task.is_dummy()
 
+    def is_sleep_task(self):
+        return self._task.is_sleep_task()
+
     def is_periodic(self):
         return self._task.is_periodic()
 

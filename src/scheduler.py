@@ -52,21 +52,45 @@ class AbstractScheduler(ABC):
         if self._no_duplicate_tasks(tasklist):
             return False
 
-        non_dummy_tasks = [task for task in tasklist if not task.is_dummy()]
+        # Check Dependencies
+        if not self._verify_schedule_dependencies(tasklist):
+            return False
+
+        return True
+
+    '''Checks that every dependency for every task is scheduled prior to the task
+
+    '''
+    def _verify_schedule_dependencies(self, schedule: List[AbstractTask]):
+        non_sleep_tasks = [task for task in schedule if not task.is_sleep_task()]
         prior_tasks = []
+
         # Check Each scheduledTask
-        for i, task in enumerate(non_dummy_tasks):
+        for i, task in enumerate(non_sleep_tasks):
 
             # Check Dependencies
-            if task.has_dependencies():
-                dependencies = task.get_dependencies()
-                if not self._verify_dependencies(dependencies, prior_tasks):
-                    return False
+            if not self._verify_task_dependencies(task, prior_tasks):
+                return False
 
             prior_tasks.append(task)
 
         return True
 
+    '''Checks that every dependency for a task is scheduled prior to the task.
+
+        '''
+    def _verify_task_dependencies(self, task, prior_tasks):
+
+        if task.has_dependencies():
+            dependencies = task.get_dependencies()
+
+            for dependency in dependencies:
+                if dependency not in prior_tasks:
+                    return False
+        return True
+
+    '''Checks that every dependency for a task is scheduled prior to the task.
+    
     def _verify_dependencies(self, tasklist: List[AbstractTask], prior_tasks) -> bool:
 
         for dependency in tasklist:
@@ -75,21 +99,21 @@ class AbstractScheduler(ABC):
 
         return True
 
-    ''' Verifies each dependency in dependency list is in tasklist'''
-
     def _verify_dependency(self, dependency: AbstractTask, prior_tasks: List[AbstractTask]) -> bool:
 
         if dependency in prior_tasks:
             return True
         else:
             return False
+   
+    '''
 
     def _no_duplicate_tasks(self, tasklist: List[AbstractTask]):
         for task in tasklist:
 
             # ingore sleepTasks
-            if task.is_dummy():
-                continue
+            #if task.is_dummy():
+            #   continue
 
             if tasklist.count(task) > 1:
                 return False
