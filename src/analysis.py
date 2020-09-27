@@ -5,9 +5,15 @@ from time import sleep
 
 class AbstractAnalysis(ABC):
 
-    def __init__(self):
-        self._wcet = None
-        self._wcbu = None
+    def __init__(self, **kwargs):
+        if "wcet" in kwargs:
+            self._wcet = kwargs.get("wcet")
+        else:
+            self._wcet = 1
+        if "wcbu" in kwargs:
+            self._wcbu = kwargs.get("wcbu")
+        else:
+            self._wcbu = 1
 
     @property
     def wcet(self):
@@ -37,10 +43,9 @@ class AbstractAnalysis(ABC):
 
 class DummyAnalysis(AbstractAnalysis):
 
-    def __init__(self):
-        super().__init__()
-        self._wcet = 5                      # in Seconds
-        self._wcbu = 1                      # in ...
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._precision = (0, 0)
 
     def execute(self):
         """This function simulates running a dummy taskold.
@@ -50,10 +55,30 @@ class DummyAnalysis(AbstractAnalysis):
         The function randoms an execution time close to worst-case execution time (wcet). Note it can exceed it's deadline.
 
         """
-        execution_time = random.randint(self._wcet - 1, self._wcet + 1)
+        lower_bound = self._wcet - self._precision[0]
+        upper_bound = self._wcet + self._precision[1]
+
+        execution_time = random.uniform(lower_bound, upper_bound)
         print("Running Task: " + str(id(self)))
-        sleep(execution_time/1000)
-        print("Completed Task " + str(id(self)) + " after " + str(execution_time) + " milliseconds")
+        sleep(execution_time)
+        print("Completed Task " + str(id(self)) + " after " + str(execution_time) + " seconds")
+
+
+class SleepAnalysis(AbstractAnalysis):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def execute(self):
+        """This function simulates running a dummy taskold.
+
+        :return: void
+
+        The function randoms an execution time close to worst-case execution time (wcet). Note it can exceed it's deadline.
+
+        """
+        print("Waiting... ")
+        sleep(self._wcet)
 
 
 class AnalysisFactory:
@@ -68,3 +93,5 @@ class AnalysisFactory:
             raise Exception("Invalid Analysis Type")
 
         return analysis
+
+

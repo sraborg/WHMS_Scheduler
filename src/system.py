@@ -7,7 +7,7 @@ import time
 
 class System:
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self._scheduler = None
         self._tasks = []
         self._schedule = []
@@ -22,6 +22,7 @@ class System:
         self._tasks.append(task)
 
     def execute_schedule(self):
+        print("Executing Schedule")
         # self._before()
         total = 0
         for i, task in enumerate(self._schedule):

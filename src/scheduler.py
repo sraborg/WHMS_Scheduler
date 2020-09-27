@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from task import AbstractTask, DummyTask#, ScheduledTask
+from task import AbstractTask, DummyTask #, ScheduledTask
 from datetime import datetime
 from typing import List
 from math import ceil
@@ -25,9 +25,11 @@ class SchedulerFactory:
 class AbstractScheduler(ABC):
 
     def __init__(self):
+        self._optimization_horizon = None
         pass
 
-    def generate_dummy_tasks(self, tasklist: List[AbstractTask], interval):
+    def generate_sleep_tasks(self, tasklist: List[AbstractTask], interval):
+
         # Calculate the number of dummy tasks needed
         last_interval = max(task.hard_deadline.timestamp() + task.wcet for task in tasklist)
         total_wcet = sum(task.wcet for task in tasklist)
@@ -35,18 +37,21 @@ class AbstractScheduler(ABC):
         num_dummy_tasks = ceil(dif / interval)
 
         # Generated Scheduled Dummy Tasks
-        dummy_tasks = []
+        sleep_tasks = []
         for x in range(num_dummy_tasks):
-            dummy_tasks.append(DummyTask(None, runtime=interval))
+            sleep_tasks.append(DummyTask(None, analysis_type="SleepAnalysis", wcet=interval))
 
-        return tasklist + dummy_tasks
+        return tasklist + sleep_tasks
 
     '''Checks if Schedule is consistent with dependencies (e.g. no task is scheduled before any of its dependencies)
     
     '''
     def _validate_schedule(self, tasklist: List[AbstractTask]) -> bool:
 
-        result = True
+        # Check for Duplicates
+        if self._no_duplicate_tasks(tasklist):
+            return False
+
         non_dummy_tasks = [task for task in tasklist if not task.is_dummy()]
         prior_tasks = []
         # Check Each scheduledTask
@@ -79,6 +84,18 @@ class AbstractScheduler(ABC):
         else:
             return False
 
+    def _no_duplicate_tasks(self, tasklist: List[AbstractTask]):
+        for task in tasklist:
+
+            # ingore sleepTasks
+            if task.is_dummy():
+                continue
+
+            if tasklist.count(task) > 1:
+                return False
+
+        return True
+
     @abstractmethod
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         pass
@@ -102,12 +119,13 @@ class DummyScheduler(AbstractScheduler):
         super().__init__()
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
-        new_tasklist = self.generate_dummy_tasks(tasklist, interval)
+        new_tasklist = self.generate_sleep_tasks(tasklist, interval)
         max_iteration = 100
         valid = False
         schedule = None
         i = 0
 
+        print("Generating Schedule at Random")
         while not valid:
             schedule = random.sample(new_tasklist, len(new_tasklist))
             valid = self._validate_schedule(schedule)
@@ -117,7 +135,7 @@ class DummyScheduler(AbstractScheduler):
                 print("===== Valid Schedule =====")
                 break
             elif i >= max_iteration:
-                raise ValueError("Failed to generate a valid schedule")
+                raise ValueError("Failed to generate a valid schedule after " + str(max_iteration) + " attempts")
 
             i += 1
 
@@ -131,39 +149,47 @@ class GeneticScheduler(AbstractScheduler):
         if "max_generations" in kwargs:
             self._max_generations = kwargs.get("max_generations")
         else:
-            self._max_generations = 25
+            self._max_generations = 50
 
         if "population_size" in kwargs:
             self._population_size = kwargs.get("population_size")
         else:
-            self._population_size = 1000
+            self._population_size = 10000
 
         self._invalid_schedule_value = -1000.0
         self._breeding_percentage = .05
         self._mutation_rate = 0.01
+        self._tasks = None
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
 
+        self._tasks = tasklist
+        new_task_list = self.generate_sleep_tasks(tasklist, interval)
         population = []
         print("Generating Schedule Using Genetic Algorithm")
 
         # Initialize Population
         for x in range(self._population_size):
-            population.append(random.sample(tasklist, len(tasklist)))
+            population.append(random.sample(new_task_list, len(new_task_list)))
 
         for x in range(self._max_generations):
-            print("Processing Generation " + str(x))
+            print("Processing Generation " + str(x+1))
 
             breeding_sample = self.selection(population)
             next_generation = self.crossover(breeding_sample, len(population))
             population = self.mutation(next_generation)
 
-        best_schedule = self.selection(population)[0]
-        return best_schedule
+        best_fit = self.selection(population)[0]
+        if not self._validate_schedule(best_fit):
+            raise ValueError("Failed Generate Schedule after " + str(self._max_generations) + " generations")
+
+        return best_fit
 
     def fitness(self, schedule):
 
         if not self._validate_schedule(schedule):
+            return self._invalid_schedule_value
+        elif self._all_tasks_present(schedule, self._tasks):
             return self._invalid_schedule_value
         else:
             return self._simulate_execution(schedule)
@@ -205,3 +231,10 @@ class GeneticScheduler(AbstractScheduler):
                     schedule[next_index] = temp
 
         return population
+
+    def _all_tasks_present(self, schedule, tasklist):
+        for task in tasklist:
+            if task not in schedule:
+                return False
+
+        return True

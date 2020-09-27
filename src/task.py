@@ -4,7 +4,7 @@ from typing import Optional, List, Tuple
 import copy           # Used in task_builder to fix error with getTask
 from nu import NuFactory, NuRegression
 from analysis import AnalysisFactory
-from analysis import AbstractAnalysis                      # Type Hint
+from analysis import AbstractAnalysis, DummyAnalysis, SleepAnalysis
 from nu import AbstractNu                                  # Type Hint
 from nu import NuRegression
 from time import sleep
@@ -258,6 +258,9 @@ class AbstractTask(ABC):
     def is_dummy(self):
         return isinstance(self, DummyTask)
 
+    def is_sleep_task(self):
+        return isinstance(self, SleepTask)
+
     def is_periodic(self):
         return False
 
@@ -281,8 +284,40 @@ class DummyTask(AbstractTask):
         else:
             self.runtime = 5
 
+        if "analysis_type" in kwargs and str.upper(kwargs.get("analysis_type")) == "SLEEPANALYSIS":
+            self._analysis = SleepAnalysis()
+        else:
+            self._analysis = DummyAnalysis(wcet=self.runtime)
+
     def execute(self):
-        sleep(self.runtime)
+        self._analysis.execute()
+        #sleep(self.runtime)
+
+    def value(self, **kwargs):
+        return 0
+
+
+class SleepTask(AbstractTask):
+
+    def __init__(self, builder: AbstractTaskBuilder = None, **kwargs):
+
+        if builder is None:
+            builder = DummyTaskBuilder()
+
+        super().__init__(builder)
+        if "runtime" in kwargs:
+            self.runtime = kwargs.get("runtime")
+        else:
+            self.runtime = 5
+
+        if "analysis_type" in kwargs and str.upper(kwargs.get("analysis_type")) == "SLEEPANALYSIS":
+            self._analysis = SleepAnalysis()
+        else:
+            self._analysis = DummyAnalysis(wcet=self.runtime)
+
+    def execute(self):
+        self._analysis.execute()
+        #sleep(self.runtime)
 
     def value(self, **kwargs):
         return 0
