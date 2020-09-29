@@ -293,9 +293,6 @@ class DummyTask(AbstractTask):
         self._analysis.execute()
         #sleep(self.runtime)
 
-    def value(self, **kwargs):
-        return 0
-
 
 class SleepTask(AbstractTask):
 

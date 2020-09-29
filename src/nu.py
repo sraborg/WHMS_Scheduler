@@ -38,14 +38,32 @@ class NuRegression(AbstractNu):
         self._f = np.poly1d(self._model)
 
 
+class NuConstant(AbstractNu):
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        if "constant" in kwargs:
+            self._value = kwargs.get("constant")
+        else:
+            self._value = 1
+
+    def fit_model(self, values: List[Tuple[datetime, int]]):
+        pass
+
+    def eval(self, x):
+        return self._value
+
+
 class NuFactory:
 
     @staticmethod
-    def get_nu(nu_type: str):
+    def get_nu(nu_type: str, **kwargs):
         nu = None
 
         if nu_type.upper() == "REGRESSION":
             nu = NuRegression()
+        elif nu_type.upper() == "CONSTANT":
+            nu = NuConstant(**kwargs)
         else:
             raise Exception("Invalid Analysis Type")
 
