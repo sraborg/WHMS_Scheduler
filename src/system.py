@@ -59,7 +59,6 @@ class System:
 
         print("\n============================\n Completed " + str(len(self._schedule)) + " tasks for total value of " + str(total))
 
-
     def _get_time_in_milliseconds(self) -> int:
         return int(round(time.time() * 1000))
 

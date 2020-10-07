@@ -231,8 +231,46 @@ class TestScheduler(unittest.TestCase):
         population = [schedule_1, schedule_2]
 
         predicted_answer = [schedule_1]
-        most_fit = sch.selection(population)
+        most_fit = sch._selection(population)
         self.assertTrue(predicted_answer == most_fit)
+
+    def test_adp_node_choices_pass_preserves_dependencies(self):
+        t1 = DummyTask()
+        t2 = DummyTask()
+        t1.add_dependency(t2)
+
+        ant = Ant()
+
+        tasks = [t1, t2]
+        adp = AntDependencyTree(tasks)
+        choices = adp.node_choices(ant)
+        prediction = [adp.get_node(t2)]
+        self.assertTrue(prediction == choices)
+
+    def test_adp_visit_node_pass_update_ant_position(self):
+        t1 = DummyTask()
+        time = datetime.now().timestamp()
+        ant = Ant()
+
+        tasks = [t1]
+        adp = AntDependencyTree(tasks)
+        node = adp.get_node(t1)
+        adp.visit_node(ant, node, time)
+        self.assertTrue(ant._last_node_visited == (node, time))
+
+    def test_adp_visit_node_pass_update_pheromone(self):
+        t1 = DummyTask()
+        time = datetime.now().timestamp()
+        ant = Ant()
+        ant2 = Ant()
+
+        tasks = [t1]
+        adp = AntDependencyTree(tasks)
+        node = adp.get_node(t1)
+        adp.visit_node(ant, node, time)
+        adp.visit_node(ant2, node, time)
+        edge = adp._pheromones[(None, (node, time))]
+        self.assertEqual(edge, 20000)
 ##
     '''
     def test_verify_dependencies_passes_no_dependencies(self):

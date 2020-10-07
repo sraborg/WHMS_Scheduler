@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from task import AbstractTask, DummyTask, SleepTask #, ScheduledTask
+import numpy as np
+from task import AbstractTask, DummyTask, SleepTask, AntTask #, ScheduledTask
 from datetime import datetime
 from typing import List
 from math import ceil
@@ -353,3 +354,89 @@ class GeneticScheduler(AbstractScheduler):
                 return False
 
         return True
+
+
+class AntScheduler(AbstractScheduler):
+
+    def __init__(self, **kwargs):
+        super().__init__()
+
+    def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
+        pass
+
+
+class Ant():
+
+    def __init__(self):
+        self._search_complete = False
+        self._last_node_visited = None
+
+    def visit(self, node: AntTask, timestamp):
+        self._last_node_visited = (node, timestamp)
+
+
+class AntDependencyTree():
+
+    def __init__(self, tasklist: List[AbstractTask]):
+        self._nodes = []
+        self._pheromones = {}
+
+        for task in tasklist:
+            self._nodes.append(AntTask(task))
+
+        self._update_dependencies()
+
+    def get_node(self, task: AbstractTask):
+        node = list(filter(lambda x: x._task is task, self._nodes))
+        return node[0]
+
+    def _update_dependencies(self):
+
+        for node in self._nodes:
+            dependencies = node._task.get_dependencies()
+
+            for dependency in dependencies:
+                found = False
+                for other_node in self._nodes:
+                    if dependency is other_node._task:
+                        found = True
+                        node.add_dependency(other_node)
+                        break
+
+                if not found:
+                    raise ValueError("Dependency Error")
+
+    def node_choices(self, ant: Ant):
+        valid_choices = []
+
+        # Remove nodes that have already been visited
+        choices = [node for node in self._nodes if ant not in node.visited_by]
+
+        # Only add nodes if their dependent nodes have already been visited
+        for choice in choices:
+            if all(map(lambda x: ant in x.visited_by,  choice.get_dependencies())):
+                valid_choices.append(choice)
+
+        # Deal With SleepTasks
+
+        return valid_choices
+
+    def visit_node(self, ant: Ant, node: AntTask, timestamp=None):
+        '''
+
+        :param ant:
+        :param Node:
+        :return:
+        '''
+        previous_node = ant._last_node_visited
+
+        node.visited_by.append(ant)
+
+
+        # Update Pheromone Matrix
+        edge = (ant._last_node_visited,(node, timestamp))
+
+        self._pheromones[edge] = self._pheromones.get(edge, 0) + 10000
+
+        ant.visit(node, timestamp)
+

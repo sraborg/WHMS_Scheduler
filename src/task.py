@@ -468,6 +468,27 @@ class TaskDecorator(ABC):
         return self._task.is_periodic()
 
 
+class AntTask(TaskDecorator):
+
+    def __init__(self, task: AbstractTask, **kwargs):
+        super().__init__(task)
+        self.visited_by = []
+        self._dependent_tasks = []
+
+    @property
+    def dependent_tasks(self):
+        return self._dependent_tasks
+
+    def get_dependencies(self):
+        return copy.copy(self.dependent_tasks)
+
+    def add_dependency(self, dependency):
+        self._dependent_tasks.append(dependency)
+
+    def visit(self, Node):
+        pass
+
+
 class TaskWithPeriodicity(TaskDecorator):
 
     def __init__(self, task: AbstractTask, **kwargs):
