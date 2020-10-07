@@ -369,10 +369,16 @@ class Ant():
 
     def __init__(self):
         self._search_complete = False
-        self._last_node_visited = None
+        self._path = []
+
+    def last_visited_node(self):
+        if not self._path:
+            return None
+        else:
+            return self._path[-1]
 
     def visit(self, node: AntTask, timestamp):
-        self._last_node_visited = (node, timestamp)
+        self._path.append((node, timestamp))
 
 
 class AntDependencyTree():
@@ -380,6 +386,7 @@ class AntDependencyTree():
     def __init__(self, tasklist: List[AbstractTask]):
         self._nodes = []
         self._pheromones = {}
+        self.population_size = 10000
 
         for task in tasklist:
             self._nodes.append(AntTask(task))
@@ -428,13 +435,13 @@ class AntDependencyTree():
         :param Node:
         :return:
         '''
-        previous_node = ant._last_node_visited
+        previous_node = ant.last_visited_node()
 
         node.visited_by.append(ant)
 
 
         # Update Pheromone Matrix
-        edge = (ant._last_node_visited,(node, timestamp))
+        edge = (ant.last_visited_node(), (node, timestamp))
 
         self._pheromones[edge] = self._pheromones.get(edge, 0) + 10000
 

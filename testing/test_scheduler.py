@@ -256,7 +256,7 @@ class TestScheduler(unittest.TestCase):
         adp = AntDependencyTree(tasks)
         node = adp.get_node(t1)
         adp.visit_node(ant, node, time)
-        self.assertTrue(ant._last_node_visited == (node, time))
+        self.assertTrue(ant.last_visited_node() == (node, time))
 
     def test_adp_visit_node_pass_update_pheromone(self):
         t1 = DummyTask()
