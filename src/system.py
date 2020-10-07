@@ -21,6 +21,11 @@ class System:
             task.queue_time = time
         self._tasks.append(task)
 
+    def simulate_schedule(self, schedule: List[AbstractTask] = None, **kwargs):
+        if schedule is None:
+            schedule = self._schedule
+        return self._scheduler.simulate_execution(schedule, **kwargs)
+
     def execute_schedule(self):
         print("Executing Schedule")
         # self._before()

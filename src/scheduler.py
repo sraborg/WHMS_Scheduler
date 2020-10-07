@@ -14,8 +14,8 @@ class SchedulerFactory:
 
         if scheduler_type.upper() == "GENETIC":
             scheduler = GeneticScheduler()
-        elif scheduler_type.upper() == "DUMMY":
-            scheduler = DummyScheduler()
+        elif scheduler_type.upper() == "RANDOM":
+            scheduler = RandomScheduler()
         else:
             raise Exception("Invalid Analysis Type")
 
@@ -26,6 +26,8 @@ class AbstractScheduler(ABC):
 
     def __init__(self):
         self._optimization_horizon = None
+        self.start_time = None
+        self.verbose = True
 
     @property
     def optimization_horizon(self):
@@ -36,6 +38,10 @@ class AbstractScheduler(ABC):
     def calculate_optimization_horizon(tasklist):
         horizon = max(task.hard_deadline.timestamp() + task.wcet for task in tasklist)
         return horizon
+
+    def _initialize_tasklist(self, tasklist: List[AbstractTask], interval):
+        self._tasks = tasklist
+        return tasklist + self.generate_sleep_tasks(tasklist, interval)
 
     def generate_sleep_tasks(self, tasklist: List[AbstractTask], interval, **kwargs):
 
@@ -148,11 +154,20 @@ class AbstractScheduler(ABC):
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         pass
 
-    def _simulate_execution(self, tasklist: List[AbstractTask]):
-        time = datetime.now().timestamp()
+    def simulate_execution(self, tasklist: List[AbstractTask], **kwargs):
+
+        if "start_time" in kwargs:
+            time = kwargs.get("start_time")
+        elif self.start_time is None:
+            time = datetime.now().timestamp()
+        else:
+            time = self.start_time.timestamp()
+
         total_value = 0
 
         for task in tasklist:
+
+            # Ignore Sleep Tasks Values
             if not task.is_sleep_task():
                 total_value += task.value(timestamp=time)
 
@@ -161,29 +176,34 @@ class AbstractScheduler(ABC):
         return total_value
 
 
-class DummyScheduler(AbstractScheduler):
+class RandomScheduler(AbstractScheduler):
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__()
+        if "max_iterations" in kwargs:
+            self.max_iteration = kwargs.get("max_iterations")
+        else:
+            self.max_iteration = 100
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
-        new_tasklist = self.generate_sleep_tasks(tasklist, interval)
-        max_iteration = 100
+        new_tasklist = self._initialize_tasklist(tasklist, interval)
+
         valid = False
         schedule = None
         i = 0
-
         print("Generating Schedule at Random")
         while not valid:
+            if self.verbose:
+                print("Attempt: " + str(i + 1))
             schedule = random.sample(new_tasklist, len(new_tasklist))
             valid = self._validate_schedule(schedule)
 
-            list = [(i,task, task.dependent_tasks) for i, task in enumerate(schedule) if not task.is_dummy()]
             if valid:
-                print("===== Valid Schedule =====")
+                if self.verbose:
+                    print("Valid Schedule Found")
                 break
-            elif i >= max_iteration:
-                raise ValueError("Failed to generate a valid schedule after " + str(max_iteration) + " attempts")
+            elif i >= self.max_iteration:
+                raise ValueError("Failed to generate a valid schedule after " + str(self.max_iteration) + " attempts")
 
             i += 1
 
@@ -195,82 +215,130 @@ class GeneticScheduler(AbstractScheduler):
     def __init__(self, **kwargs):
         super().__init__()
         if "max_generations" in kwargs:
-            self._max_generations = kwargs.get("max_generations")
+            self.max_generations = kwargs.get("max_generations")
         else:
-            self._max_generations = 50
+            self.max_generations = 500
 
         if "population_size" in kwargs:
-            self._population_size = kwargs.get("population_size")
+            self.population_size = kwargs.get("population_size")
         else:
-            self._population_size = 10000
+            self.population_size = 500
+        self.elitism = True
 
         self._invalid_schedule_value = -1000.0
-        self._breeding_percentage = .05
-        self._mutation_rate = 0.01
+        self.breeding_percentage = .05
+        self.mutation_rate = 0.01
+        self.threshold = 0.01
+        self.generation_thresold = 10
         self._tasks = None
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
 
-        self._tasks = tasklist
-        new_task_list = tasklist + self.generate_sleep_tasks(tasklist, interval)
+        new_task_list = self._initialize_tasklist(tasklist, interval)
         population = []
+        i = 1
+        converged = False
+        threshold_count = 0
         print("Generating Schedule Using Genetic Algorithm")
 
         # Initialize Population
-        for x in range(self._population_size):
+        for x in range(self.population_size):
             population.append(random.sample(new_task_list, len(new_task_list)))
 
-        for x in range(self._max_generations):
-            print("Processing Generation " + str(x+1))
+        current_best_schedule_value = 0
 
-            breeding_sample = self.selection(population)
-            next_generation = self.crossover(breeding_sample, len(population))
-            population = self.mutation(next_generation)
+        while not converged:
+            print("Processing Generation " + str(i))
 
-        best_fit = self.selection(population)[0]
-        #if not AbstractScheduler._validate_schedule(best_fit):
-        #    raise ValueError("Failed Generate Schedule after " + str(self._max_generations) + " generations")
+            breeding_sample = self._selection(population)
+            new_best_schedule_value = self._fitness(breeding_sample[0])
+            if self.verbose:
+                print("Best Fit: " + str(new_best_schedule_value))
+            next_generation = self._crossover(breeding_sample, len(population))
+            next_generation = self._mutation(next_generation)
+
+            # Generate next Generation
+            if self.elitism:
+                population = [*breeding_sample, *next_generation]
+            else:
+                population = next_generation
+
+            # Termination Conditions
+            delta = abs(new_best_schedule_value - current_best_schedule_value)
+
+            if i >= self.max_generations:
+                break
+            elif delta < self.threshold:
+                threshold_count += 1
+
+                if threshold_count >= self.generation_thresold:
+                    converged = True
+
+            else:
+                threshold_count = 0
+
+            print("Delta: " + str(delta) + " | thresold_count: " + str(threshold_count))
+            # Prepare for next iteration
+            current_best_schedule_value = new_best_schedule_value
+            i += 1
+
+        best_fit = self._selection(population)[0]
+
+        if self.verbose:
+            if converged:
+                print("Convergence Meet after " + str(i) + " iterations")
+            else:
+                print("Convergence not meet. Algorithm quit after " + str(i) + " iterations")
 
         return best_fit
 
-    def fitness(self, schedule):
+    def _fitness(self, schedule, tasklist=None):
+        if tasklist is None:
+            tasklist = self._tasks
 
         if not AbstractScheduler._validate_schedule(schedule):
             return self._invalid_schedule_value
-        elif not GeneticScheduler._all_tasks_present(schedule, self._tasks):
+        elif not GeneticScheduler._all_tasks_present(tasklist, schedule):
             return self._invalid_schedule_value
         else:
-            return self._simulate_execution(schedule)
+            return self.simulate_execution(schedule)
 
-    def selection(self, population, **kwargs):
+    def _selection(self, population, **kwargs):
         values = []
         for schedule in population:
-            values.append(self.fitness(schedule))
+            values.append(self._fitness(schedule))
 
         sample = list(zip(population, values))
         sample.sort(key=lambda item: item[1], reverse=True)
         ordered_sample, _ = zip(*sample)
-        cutoff = ceil(len(sample)*self._breeding_percentage)
+        cutoff = ceil(len(sample)*self.breeding_percentage)
         parent_sample = list(ordered_sample[:cutoff])
 
         return parent_sample
 
-    def crossover(self, parents, population_size):
+    ##
+    # Creates the next generation of schudules. If "elitism is set", parents are carried over to next generation.
+    def _crossover(self, parents, population_size):
         next_generation = []
 
-        for x in range(population_size):
+        if self.elitism:
+            next_gen_size = population_size - len(parents)
+        else:
+            next_gen_size = population_size
+
+        for x in range(next_gen_size):
             p1, p2 = random.sample(parents, 2)
-            midpoint = ceil(len(p1)/2)
-            child = p1[:midpoint] + p2[midpoint:]
+            crossover_point = random.randint(0, population_size)
+            child = p1[:crossover_point] + p2[crossover_point:]
             next_generation.append(child)
 
         return next_generation
 
-    def mutation(self, population):
+    def _mutation(self, population):
 
         for schedule in population:
             for i, task in enumerate(schedule):
-                if random.random() <= self._mutation_rate:
+                if random.random() <= self.mutation_rate:
                     next_index = random.randint(0, len(schedule)-1)
                     temp = task
                     schedule[i] = schedule[next_index]

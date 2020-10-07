@@ -468,31 +468,15 @@ class TaskDecorator(ABC):
         return self._task.is_periodic()
 
 
-'''Loosely follows the Decorator Pattern. Adds new features, but must be the final "outer wrapper"
-
-'''
-
-'''
-class ScheduledTask(TaskDecorator):
-
-    def __init__(self, task: AbstractTask, **kwargs):
-        super().__init__(task)
-        self._task = task
-
-        if "queue_time" in kwargs:
-            self.queue_time = kwargs.get("queue_time")
-        else:
-            self.queue_time = 5
-        self.release_time: datetime = None
-        self.completion_time: datetime = None
-        self.execution_time: datetime = None
-'''
-
-
 class TaskWithPeriodicity(TaskDecorator):
 
     def __init__(self, task: AbstractTask, **kwargs):
         super().__init__(task)
+        self._peridic_interval = None
+        if "periodic_interval" in kwargs:
+            self._peridic_interval = kwargs.get("periodic_interval")
+        else:
+            raise ValueError("No Periodic Interval Set")
 
     def is_periodic(self):
         return True

@@ -113,7 +113,7 @@ class TestScheduler(unittest.TestCase):
 
         sch._tasks = schedule
 
-        self.assertEqual(3, sch._simulate_execution(schedule))
+        self.assertEqual(3, sch.simulate_execution(schedule))
 
     def test_simulate_execution_fails_incorrect_value(self):
         sch = GeneticScheduler()
@@ -130,7 +130,7 @@ class TestScheduler(unittest.TestCase):
 
         sch._tasks = schedule
 
-        self.assertNotEqual(10, sch._simulate_execution(schedule))
+        self.assertNotEqual(10, sch.simulate_execution(schedule))
 
     def test_calculate_optimization_horizon_passes_correct_value(self):
         start_time = datetime.now() + timedelta(minutes=10)
@@ -204,28 +204,28 @@ class TestScheduler(unittest.TestCase):
         schedule_1.append(task_2)
         schedule_1.append(task_3)
         schedule_1.append(task_4)
-        value_1 = sch._simulate_execution(schedule_1)
+        value_1 = sch.simulate_execution(schedule_1)
 
         # value = 39
         schedule_2.append(task_5)
         schedule_2.append(task_6)
         schedule_2.append(task_7)
         schedule_2.append(task_8)
-        value_2 = sch._simulate_execution(schedule_2)
+        value_2 = sch.simulate_execution(schedule_2)
 
         # value = 113
         schedule_3.append(task_3)
         schedule_3.append(task_4)
         schedule_3.append(task_5)
         schedule_3.append(task_6)
-        value_3 = sch._simulate_execution(schedule_3)
+        value_3 = sch.simulate_execution(schedule_3)
 
         # value = 58
         schedule_4.append(task_7)
         schedule_4.append(task_8)
         schedule_4.append(task_1)
         schedule_4.append(task_2)
-        value_4 = sch._simulate_execution(schedule_4)
+        value_4 = sch.simulate_execution(schedule_4)
 
         sch._tasks = schedule_1
         population = [schedule_1, schedule_2]
