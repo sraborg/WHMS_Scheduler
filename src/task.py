@@ -1,3 +1,4 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional, List, Tuple
@@ -7,6 +8,7 @@ from analysis import AnalysisFactory
 from analysis import AbstractAnalysis, DummyAnalysis, SleepAnalysis
 from nu import AbstractNu                                  # Type Hint
 from nu import NuRegression
+#from scheduler import Ant
 from time import sleep
 
 
@@ -485,8 +487,9 @@ class AntTask(TaskDecorator):
     def add_dependency(self, dependency):
         self._dependent_tasks.append(dependency)
 
-    def visit(self, Node):
-        pass
+    def accept(self, ant, timestamp):
+        self.visited_by.append(ant)
+        ant.visit(self, timestamp)
 
 
 class TaskWithPeriodicity(TaskDecorator):

@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from task import AbstractTask, DummyTask, SleepTask, AntTask #, ScheduledTask
+from task import AbstractTask, DummyTask, SleepTask, AntTask
 from datetime import datetime
-from typing import List
+from typing import List, Dict, Tuple
 from math import ceil
 import random
 
@@ -15,6 +15,8 @@ class SchedulerFactory:
 
         if scheduler_type.upper() == "GENETIC":
             scheduler = GeneticScheduler()
+        elif scheduler_type.upper() == "ANT":
+            scheduler = AntScheduler()
         elif scheduler_type.upper() == "RANDOM":
             scheduler = RandomScheduler()
         else:
@@ -26,14 +28,21 @@ class SchedulerFactory:
 class AbstractScheduler(ABC):
 
     def __init__(self):
+        self._tasks = None
         self._optimization_horizon = None
         self.start_time = None
         self.verbose = True
+        self._invalid_schedule_value = -1000.0
 
     @property
     def optimization_horizon(self):
         if self._optimization_horizon is None:
-            return
+            if self._tasks is None:
+                raise ValueError("No tasks to schedule")
+            else:
+                self._optimization_horizon = AbstractScheduler.calculate_optimization_horizon(self._tasks)
+
+        return self._optimization_horizon
 
     @staticmethod
     def calculate_optimization_horizon(tasklist):
@@ -71,12 +80,11 @@ class AbstractScheduler(ABC):
 
         return sleep_tasks
 
-    '''Checks if Schedule is consistent with dependencies (e.g. no task is scheduled before any of its dependencies)
-    
-    '''
     @staticmethod
     def _validate_schedule(tasklist: List[AbstractTask]) -> bool:
+        """Checks if Schedule is consistent with dependencies (e.g. no task is scheduled before any of its dependencies)
 
+        """
         # Check for Duplicates
         if not AbstractScheduler._no_duplicate_tasks(tasklist):
             return False
@@ -176,6 +184,43 @@ class AbstractScheduler(ABC):
 
         return total_value
 
+    @staticmethod
+    def simulate_step(task, time):
+        value = 0
+
+        if not task.is_sleep_task():
+            value += task.value(timestamp=time)
+
+        time += task.wcet
+
+        return value, time
+
+
+class MetaHeuristicScheduler(AbstractScheduler):
+
+    def __init__(self):
+        super().__init__()
+        self.max_iterations = 100
+        self.threshold = 0.01
+        self.generational_threshold = 10
+        self._generational_threshold_count = 0
+
+    def is_converged(self, last_value: float, current_value: float):
+        delta = abs(last_value - current_value)
+
+        if delta < self.threshold:
+            self._generational_threshold_count += 1
+
+            if self._generational_threshold_count >= self.generational_threshold:
+                return True
+        else:
+            threshold_count = 0
+
+        return False
+
+    def max_iterations_reached(self):
+        pass
+
 
 class RandomScheduler(AbstractScheduler):
 
@@ -225,8 +270,6 @@ class GeneticScheduler(AbstractScheduler):
         else:
             self.population_size = 500
         self.elitism = True
-
-        self._invalid_schedule_value = -1000.0
         self.breeding_percentage = .05
         self.mutation_rate = 0.01
         self.threshold = 0.01
@@ -356,37 +399,209 @@ class GeneticScheduler(AbstractScheduler):
         return True
 
 
-class AntScheduler(AbstractScheduler):
+class AntScheduler(MetaHeuristicScheduler):
 
     def __init__(self, **kwargs):
         super().__init__()
+        self.max_path_size = 1000
+        self.population_size = 10
+        self.alpha = 1
+        self.beta = 0.5
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
-        pass
+        self._tasks = tasklist
+        converged = False
+
+        adt = AntDependencyTree(tasklist)
+        possible_starting_nodes = adt.node_choices(Ant(), interval)
+        i = 1
+        converged = False
+        self._generational_threshold_count = 0
+        current_best_schedule_value = 0
+        possible_solutions: List[Tuple[List[AbstractTask], int]] = []  # List of (Schedule, Value)
+
+        while not converged:
+            print("Processing Ant Batch " + str(i))
+
+            # Initialization
+            colony = []
+
+            for j in range(self.population_size):
+                colony.append(Ant())
+
+            for ant in colony:
+
+                # Place ants on random "Starting Node"
+                node = random.choice(possible_starting_nodes)
+                time = self.start_time.timestamp()
+
+                adt.visit_node(ant, node, time)
+
+                # Generate Path
+                while not ant._search_complete:
+
+                    # Determine valid Node choices
+                    valid_choices = adt.node_choices(ant, interval)
+
+                    # Check for Path Termination (e.g. empty list or exceeded event horizon)
+                    if not valid_choices:
+                        ant._search_complete = True
+                        break
+
+                    """ 
+                        elif ant._time >= self.optimization_horizon:
+                        print("Ant (" + str(id(ant)) + ") lost")
+                        break
+                    """
+
+                    # Make move
+                    next_node = self._edge_selection(ant, valid_choices, adt)
+                    adt.visit_node(ant, next_node, time)
+                    time += node.wcet
+
+                if ant._search_complete & self.verbose:
+                    print("Ant (" + str(id(ant)) + ") path complete " + str(ant._path))
+
+            # Update Best Solutions
+            new_solutions = []
+            for ant in colony:
+                sch = ant.get_schedule()
+                val = self.simulate_execution(sch)
+                new_solutions.append((sch, val))
+
+            possible_solutions = possible_solutions + new_solutions
+            possible_solutions.sort(key=lambda x: x[1], reverse=True)
+            possible_solutions = possible_solutions[:ceil(len(colony)/2)]
+
+            new_best_schedule_value = possible_solutions[0][1]
+
+            # Algorithm Termination Conditions
+            if self.is_converged(current_best_schedule_value, new_best_schedule_value):
+                print("Convergence Met")
+                converged = True
+                break
+            elif i > self.max_iterations:
+                print("Max iterations met")
+                break
+
+            # Prep Next iteration
+            i += 1
+
+            # Update Pheromone Matrix
+            for ant in colony:
+                adt.update_pheromones(ant, self._fitness)
+
+            # Evaporation
+            adt.evaporate_pheromones()
+
+        print("Finished after " + str(i) + " swarms")
+
+        best_schedule = list(possible_solutions[0][0])
+        return best_schedule
+
+    def _edge_selection(self, ant, choices, adt, iteration=1):
+        """ Choices then next node to visit (and hence the edge to use).
+
+        :param ant:
+        :param choices: List of valid choices
+        :return:
+        """
+
+        best_value = 0
+        node_choice = None
+        last = ant.last_visited_node()
+        alpha = self.alpha
+        beta = self.beta / iteration
+        for choice in choices:
+            e = (last, choice)
+            p_value = adt.get_pheromone_value(e)
+            if p_value < 1:
+                p_value = -1*p_value
+                p_value = -1*(p_value**alpha)
+            else:
+                p_value = p_value ** alpha
+
+            h_value = self._attractiveness(choice, last[1])
+            if h_value < 1:
+                h_value = -1 * h_value
+                h_value = -1 * (h_value ** beta)
+            else:
+                h_value = h_value ** beta
+
+            value = p_value * h_value / len(choices)
+
+            if value >= best_value:
+                best_value = value
+                node_choice = choice
+
+        return node_choice
+
+    def _attractiveness(self, Node, time):
+        return Node.value(timestamp=time)
+
+    def _fitness(self, schedule):
+
+        if not AbstractScheduler._validate_schedule(schedule):
+            return self._invalid_schedule_value
+        else:
+            return self.simulate_execution(schedule)
 
 
-class Ant():
+class Ant:
 
     def __init__(self):
         self._search_complete = False
         self._path = []
+        self._path_value = None
+        self._time = 0
+
+    def get_visited_nodes(self):
+        """ Returns an iterator of all the nodes (AntTasks, timestamp) the ant has visited.
+            Note that a "node" in this context consists of a AntTasks and a Timestamp
+
+        :return: Iterator of (AntTask, timestamp)
+        """
+        return map(lambda x: x, self._path)
+
+    def get_completed_anttasks(self):
+        """ Returns an iterator of all the AntTasks the ant has completed.
+
+        :return: Iterator
+        """
+        return map(lambda x: x[0], self._path)
+
+    def get_schedule(self):
+        """ Unpacks the AntTasks and returns a list of the original tasks
+
+        :return:
+        """
+        return map(lambda x: x[0]._task, self._path)
 
     def last_visited_node(self):
-        if not self._path:
+        visited_nodes = list(self.get_visited_nodes())
+        if not visited_nodes: # empty case
             return None
-        else:
-            return self._path[-1]
+
+        return visited_nodes[-1]
 
     def visit(self, node: AntTask, timestamp):
+        self._time = timestamp
         self._path.append((node, timestamp))
 
+    def get_path_value(self):
+        if not self._search_complete:
+            raise ValueError("Ant has not completed path")
 
-class AntDependencyTree():
+        if self._path_value is None:
+            self._path_value = 0
+
+
+class AntDependencyTree:
 
     def __init__(self, tasklist: List[AbstractTask]):
         self._nodes = []
-        self._pheromones = {}
-        self.population_size = 10000
+        self._pheromones: Dict[List[float]] = {}
+        self._edge_visits: Dict[Tuple[int,int]] = {}
 
         for task in tasklist:
             self._nodes.append(AntTask(task))
@@ -398,6 +613,11 @@ class AntDependencyTree():
         return node[0]
 
     def _update_dependencies(self):
+        """Fixes the dependency references so that to point to the Ant Task Wrapper
+        instead of the owned (composite) task class
+
+        :return: None
+        """
 
         for node in self._nodes:
             dependencies = node._task.get_dependencies()
@@ -413,37 +633,80 @@ class AntDependencyTree():
                 if not found:
                     raise ValueError("Dependency Error")
 
-    def node_choices(self, ant: Ant):
+    def node_choices(self, ant: Ant, interval: float):
+        """ Determines which nodes are available to the ant. In other words, it only excludes nodes (tasks) whose
+            dependencies haven't been met or if it has already been visited by the ant.
+
+        :param ant: Ant
+        :return: List(AntTasks)
+        """
         valid_choices = []
+        completed_anttasks = list(ant.get_completed_anttasks())
 
         # Remove nodes that have already been visited
-        choices = [node for node in self._nodes if ant not in node.visited_by]
+        choices = [task for task in self._nodes if task not in completed_anttasks]
 
         # Only add nodes if their dependent nodes have already been visited
         for choice in choices:
             if all(map(lambda x: ant in x.visited_by,  choice.get_dependencies())):
                 valid_choices.append(choice)
 
-        # Deal With SleepTasks
+        # If there are still nodes to visit, add SleepTask
+        if not not valid_choices:
+            st = SleepTask(runtime=interval, analysis_type="SLEEPANALYSIS")
+            valid_choices.append(AntTask(st))
 
         return valid_choices
 
     def visit_node(self, ant: Ant, node: AntTask, timestamp=None):
-        '''
-
+        """
         :param ant:
-        :param Node:
+        :param node:
+        :param timestamp:
         :return:
-        '''
+        """
+
         previous_node = ant.last_visited_node()
 
-        node.visited_by.append(ant)
+        node.accept(ant, timestamp)
+
 
 
         # Update Pheromone Matrix
-        edge = (ant.last_visited_node(), (node, timestamp))
+        # edge = (ant.last_visited_node(), (node, timestamp))
 
-        self._pheromones[edge] = self._pheromones.get(edge, 0) + 10000
+        #self._pheromones[edge] = self._pheromones.get(edge, 0) + 10000
 
-        ant.visit(node, timestamp)
+    def update_pheromones(self, ant, fitness):
+        """
 
+        :param ant: the Ant
+        :param fitness: A Fitness Function
+        :return:
+        """
+        schedule = list(ant.get_schedule())
+
+        value = fitness(schedule)
+
+        path = list(ant.get_visited_nodes())
+        for i, node in enumerate(path[:-1]):
+            key = (path[i], path[i+1])
+
+            if key not in self._pheromones:
+                self._pheromones[key] = []
+
+            if key not in self._edge_visits:
+                self._edge_visits[key] = 0
+
+            self._pheromones[key].append(value)
+            self._edge_visits[key] = self._edge_visits[key] + 1
+
+    def get_pheromone_value(self, key):
+        if key not in self._pheromones:
+            return 0
+        else:
+            return sum(self._pheromones[key]) / self._edge_visits[key]
+
+    def evaporate_pheromones(self, evaporation_rate=0.8):
+        for k,v in self._pheromones.items():
+            self._pheromones[k] = map(lambda x: x * evaporation_rate, v)

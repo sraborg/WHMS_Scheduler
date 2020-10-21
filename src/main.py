@@ -4,16 +4,14 @@ import random
 from task import TaskBuilder
 
 sys = System()
-sys.set_scheduler("genetic")
 start = earliest_start = datetime.now() + timedelta(minutes=5)
-sys._scheduler.start_time = start
 tb = TaskBuilder()
 
 random.seed()
 
 
 for i in range(10):
-    earliest_start = datetime.now() + timedelta(minutes=5)
+    earliest_start = datetime.now() + timedelta(minutes=20)
     soft_deadline = earliest_start + timedelta(minutes=random.randint(0, 10), seconds=random.randint(0, 30))
     hard_deadline = soft_deadline + timedelta(minutes=random.randint(0, 10), seconds=random.randint(0, 30))
 
@@ -35,13 +33,24 @@ for i in range(10):
         task.add_dependency(sys._tasks[i-1])
     sys.add_task(task)
 
-
-#sys.schedule_tasks()
-#sys.execute_schedule()
-
-
+'''
+sys.set_scheduler("random")
+sys._scheduler.start_time = start
 sys.schedule_tasks()
 total_value = sys.simulate_schedule(start_time=start.timestamp())
-print("Value: " + str(total_value))
+print("Random Scheduler Value: " + str(total_value))
 
+sys.set_scheduler("genetic")
+sys._scheduler.start_time = start
+sys.schedule_tasks()
+total_value = sys.simulate_schedule(start_time=start.timestamp())
+print("Genetic Scheduler Value: " + str(total_value))
+
+'''
+sys.set_scheduler("ant")
+sys._scheduler.start_time = start
+sys._scheduler.max_iterations = 5
+sys.schedule_tasks()
+total_value = sys.simulate_schedule(start_time=start.timestamp())
+print("Ant Scheduler Value: " + str(total_value))
 #sys.execute_schedule()
