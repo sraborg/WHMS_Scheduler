@@ -508,6 +508,8 @@ class AntScheduler(MetaHeuristicScheduler):
         """
 
         best_value = 0
+        probabilities = []
+        norm = 0
         node_choice = None
         last = ant.last_visited_node()
         alpha = self.alpha
@@ -528,13 +530,20 @@ class AntScheduler(MetaHeuristicScheduler):
             else:
                 h_value = h_value ** beta
 
-            value = p_value * h_value / len(choices)
+            value = p_value * h_value
+
+
+            probabilities.append(value)
 
             if value >= best_value:
                 best_value = value
                 node_choice = choice
 
-        return node_choice
+        norm = sum(probabilities)
+        probabilities = [p/norm for p in probabilities]
+
+        node_choice = random.choices(choices, weights=probabilities)
+        return node_choice[0]
 
     def _attractiveness(self, Node, time):
         return Node.value(timestamp=time)
@@ -602,6 +611,7 @@ class AntDependencyTree:
         self._nodes = []
         self._pheromones: Dict[List[float]] = {}
         self._edge_visits: Dict[Tuple[int,int]] = {}
+        self.min_pheromone_amount = 0.001
 
         for task in tasklist:
             self._nodes.append(AntTask(task))
@@ -703,10 +713,10 @@ class AntDependencyTree:
 
     def get_pheromone_value(self, key):
         if key not in self._pheromones:
-            return 0
+            return self.min_pheromone_amount
         else:
             return sum(self._pheromones[key]) / self._edge_visits[key]
 
     def evaporate_pheromones(self, evaporation_rate=0.8):
         for k,v in self._pheromones.items():
-            self._pheromones[k] = map(lambda x: x * evaporation_rate, v)
+            self._pheromones[k] = list(map(lambda x: x * evaporation_rate, v))
