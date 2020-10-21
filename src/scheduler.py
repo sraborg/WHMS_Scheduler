@@ -215,13 +215,22 @@ class MetaHeuristicScheduler(AbstractScheduler):
             if self._generational_threshold_count >= self.generational_threshold:
                 return True
         else:
-            threshold_count = 0
+            self._generational_threshold_count = 0
 
+        if self.verbose:
+            print("Delta: " + str(delta) + " | threshold_count: " + str(self._generational_threshold_count))
         return False
 
     def max_iterations_reached(self):
         pass
 
+    @staticmethod
+    def _all_tasks_present(original_schedule, new_schedule):
+        for task in original_schedule:
+            if task not in new_schedule:
+                return False
+
+        return True
 
 class RandomScheduler(AbstractScheduler):
 
@@ -257,7 +266,7 @@ class RandomScheduler(AbstractScheduler):
         return schedule
 
 
-class GeneticScheduler(AbstractScheduler):
+class GeneticScheduler(MetaHeuristicScheduler):
 
     def __init__(self, **kwargs):
         super().__init__()
@@ -269,12 +278,10 @@ class GeneticScheduler(AbstractScheduler):
         if "population_size" in kwargs:
             self.population_size = kwargs.get("population_size")
         else:
-            self.population_size = 500
+            self.population_size = 5000
         self.elitism = True
         self.breeding_percentage = .05
         self.mutation_rate = 0.01
-        self.threshold = 0.01
-        self.generation_thresold = 10
         self._tasks = None
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
@@ -309,20 +316,11 @@ class GeneticScheduler(AbstractScheduler):
                 population = next_generation
 
             # Termination Conditions
-            delta = abs(new_best_schedule_value - current_best_schedule_value)
-
             if i >= self.max_generations:
                 break
-            elif delta < self.threshold:
-                threshold_count += 1
+            elif self.is_converged(current_best_schedule_value, new_best_schedule_value):
+                converged = True
 
-                if threshold_count >= self.generation_thresold:
-                    converged = True
-
-            else:
-                threshold_count = 0
-
-            print("Delta: " + str(delta) + " | thresold_count: " + str(threshold_count))
             # Prepare for next iteration
             current_best_schedule_value = new_best_schedule_value
             i += 1
@@ -390,14 +388,6 @@ class GeneticScheduler(AbstractScheduler):
                     schedule[next_index] = temp
 
         return population
-
-    @staticmethod
-    def _all_tasks_present(original_schedule, new_schedule):
-        for task in original_schedule:
-            if task not in new_schedule:
-                return False
-
-        return True
 
 
 class AntScheduler(MetaHeuristicScheduler):

@@ -11,7 +11,7 @@ class System:
         self._scheduler = None
         self._tasks = []
         self._schedule = []
-        self._interval = .5            # in Seconds
+        self._interval = 60            # in Seconds
         self._completed_tasks = []
 
     def add_task(self, task: AbstractTask):
