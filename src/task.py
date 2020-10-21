@@ -314,6 +314,11 @@ class SleepTask(AbstractTask):
         else:
             self._analysis = DummyAnalysis(wcet=self.runtime)
 
+        # Set all points to now
+        self.earliest_start = datetime.now()
+        self.soft_deadline = self.earliest_start
+        self.hard_deadline = self.earliest_start
+
     def execute(self):
         self._analysis.execute()
         #sleep(self.runtime)

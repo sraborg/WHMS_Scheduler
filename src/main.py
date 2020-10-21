@@ -39,18 +39,25 @@ sys._scheduler.start_time = start
 sys.schedule_tasks()
 total_value = sys.simulate_schedule(start_time=start.timestamp())
 print("Random Scheduler Value: " + str(total_value))
-
+'''
 sys.set_scheduler("genetic")
 sys._scheduler.start_time = start
+sys._scheduler.max_generations = 100
+sys._scheduler.generation_thresold = 200
 sys.schedule_tasks()
+gen_sch = sys._schedule
 total_value = sys.simulate_schedule(start_time=start.timestamp())
 print("Genetic Scheduler Value: " + str(total_value))
 
-'''
+
+
 sys.set_scheduler("ant")
 sys._scheduler.start_time = start
-sys._scheduler.max_iterations = 5
+sys._scheduler.max_iterations = 2
+sys._scheduler.population_size = 20
 sys.schedule_tasks()
+ant_sch = sys._schedule
 total_value = sys.simulate_schedule(start_time=start.timestamp())
 print("Ant Scheduler Value: " + str(total_value))
+
 #sys.execute_schedule()

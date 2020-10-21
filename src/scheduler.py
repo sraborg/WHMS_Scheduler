@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import List, Dict, Tuple
 from math import ceil
 import random
+import copy
 
 
 class SchedulerFactory:
@@ -403,10 +404,9 @@ class AntScheduler(MetaHeuristicScheduler):
 
     def __init__(self, **kwargs):
         super().__init__()
-        self.max_path_size = 1000
-        self.population_size = 10
+        self.population_size = 500
         self.alpha = 1
-        self.beta = 0.5
+        self.beta = 1
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         self._tasks = tasklist
@@ -417,16 +417,15 @@ class AntScheduler(MetaHeuristicScheduler):
         i = 1
         converged = False
         self._generational_threshold_count = 0
-        current_best_schedule_value = 0
-        possible_solutions: List[Tuple[List[AbstractTask], int]] = []  # List of (Schedule, Value)
+        possible_solutions: List[Tuple[List[AbstractTask], int]] = [([], 0)]  # List of (Schedule, Value)
 
         while not converged:
-            print("Processing Ant Batch " + str(i))
+            print("Processing Swarm " + str(i) + " of " + str(self.population_size) + " ants")
 
             # Initialization
             colony = []
 
-            for j in range(self.population_size):
+            for ant in range(self.population_size):
                 colony.append(Ant())
 
             for ant in colony:
@@ -436,6 +435,7 @@ class AntScheduler(MetaHeuristicScheduler):
                 time = self.start_time.timestamp()
 
                 adt.visit_node(ant, node, time)
+                step = 1
 
                 # Generate Path
                 while not ant._search_complete:
@@ -447,20 +447,21 @@ class AntScheduler(MetaHeuristicScheduler):
                     if not valid_choices:
                         ant._search_complete = True
                         break
-
-                    """ 
-                        elif ant._time >= self.optimization_horizon:
+                    elif ant._time >= self.optimization_horizon:
                         print("Ant (" + str(id(ant)) + ") lost")
                         break
-                    """
+
 
                     # Make move
-                    next_node = self._edge_selection(ant, valid_choices, adt)
-                    adt.visit_node(ant, next_node, time)
+                    next_node = self._edge_selection(ant, valid_choices, adt, step)
                     time += node.wcet
+                    adt.visit_node(ant, next_node, time)
 
                 if ant._search_complete & self.verbose:
-                    print("Ant (" + str(id(ant)) + ") path complete " + str(ant._path))
+                   # print("Ant (" + str(id(ant)) + ") path complete. " + str(len(ant._path)) + " steps. " + str(ant._path))
+                    pass
+
+                step += 1
 
             # Update Best Solutions
             new_solutions = []
@@ -469,19 +470,22 @@ class AntScheduler(MetaHeuristicScheduler):
                 val = self.simulate_execution(sch)
                 new_solutions.append((sch, val))
 
+            current_best_schedule_value = possible_solutions[0][1]
             possible_solutions = possible_solutions + new_solutions
             possible_solutions.sort(key=lambda x: x[1], reverse=True)
             possible_solutions = possible_solutions[:ceil(len(colony)/2)]
 
             new_best_schedule_value = possible_solutions[0][1]
+            if self.verbose:
+                print("Best Path ("+str(len(possible_solutions[0][0])) + "): " + str(new_best_schedule_value))
 
             # Algorithm Termination Conditions
             if self.is_converged(current_best_schedule_value, new_best_schedule_value):
                 print("Convergence Met")
                 converged = True
                 break
-            elif i > self.max_iterations:
-                print("Max iterations met")
+            elif i >= self.max_iterations:
+                print("Max iterations met" + str(i) + " | " + str(self.max_iterations))
                 break
 
             # Prep Next iteration
@@ -507,10 +511,7 @@ class AntScheduler(MetaHeuristicScheduler):
         :return:
         """
 
-        best_value = 0
         probabilities = []
-        norm = 0
-        node_choice = None
         last = ant.last_visited_node()
         alpha = self.alpha
         beta = self.beta / iteration
@@ -535,9 +536,10 @@ class AntScheduler(MetaHeuristicScheduler):
 
             probabilities.append(value)
 
-            if value >= best_value:
-                best_value = value
-                node_choice = choice
+        # Shift probabilities to remove negative values
+        smallest = min(probabilities)
+        if smallest < 0:
+            probabilities = [p - smallest for p in probabilities]
 
         norm = sum(probabilities)
         probabilities = [p/norm for p in probabilities]
@@ -546,7 +548,20 @@ class AntScheduler(MetaHeuristicScheduler):
         return node_choice[0]
 
     def _attractiveness(self, Node, time):
-        return Node.value(timestamp=time)
+
+        if Node.is_sleep_task():
+            return 0
+
+        value_now = Node.value(timestamp=time)
+        utopia_point = Node.soft_deadline.timestamp()
+
+        if time > utopia_point:
+            return value_now
+        else:
+
+            utopia_value = Node.value(timestamp=utopia_point)
+            return value_now - utopia_value
+
 
     def _fitness(self, schedule):
 
@@ -560,7 +575,9 @@ class Ant:
 
     def __init__(self):
         self._search_complete = False
-        self._path = []
+        self._path = []                 # [(AntTask, timestamp)]
+        self._ant_tasks = []            # [(AntTask)]
+        self._schedule = []             # [AbstractTasks]
         self._path_value = None
         self._time = 0
 
@@ -572,7 +589,7 @@ class Ant:
         """
         return map(lambda x: x, self._path)
 
-    def get_completed_anttasks(self):
+    def get_completed_ant_tasks(self):
         """ Returns an iterator of all the AntTasks the ant has completed.
 
         :return: Iterator
@@ -584,7 +601,7 @@ class Ant:
 
         :return:
         """
-        return map(lambda x: x[0]._task, self._path)
+        return list(map(lambda x: x[0]._task, self._path))
 
     def last_visited_node(self):
         visited_nodes = list(self.get_visited_nodes())
@@ -596,6 +613,8 @@ class Ant:
     def visit(self, node: AntTask, timestamp):
         self._time = timestamp
         self._path.append((node, timestamp))
+        self._ant_tasks.append(node)
+        self._schedule.append(node._task)
 
     def get_path_value(self):
         if not self._search_complete:
@@ -618,7 +637,7 @@ class AntDependencyTree:
 
         self._update_dependencies()
 
-    def get_node(self, task: AbstractTask):
+    def get_ant_task(self, task: AbstractTask):
         node = list(filter(lambda x: x._task is task, self._nodes))
         return node[0]
 
@@ -648,13 +667,14 @@ class AntDependencyTree:
             dependencies haven't been met or if it has already been visited by the ant.
 
         :param ant: Ant
+        :param interval: Only Used to dynamically create SleepTasks as needed
         :return: List(AntTasks)
         """
         valid_choices = []
-        completed_anttasks = list(ant.get_completed_anttasks())
+        completed_ant_tasks = ant.get_completed_ant_tasks()
 
         # Remove nodes that have already been visited
-        choices = [task for task in self._nodes if task not in completed_anttasks]
+        choices = [task for task in self._nodes if task not in completed_ant_tasks]
 
         # Only add nodes if their dependent nodes have already been visited
         for choice in choices:
@@ -686,6 +706,7 @@ class AntDependencyTree:
         # edge = (ant.last_visited_node(), (node, timestamp))
 
         #self._pheromones[edge] = self._pheromones.get(edge, 0) + 10000
+
 
     def update_pheromones(self, ant, fitness):
         """

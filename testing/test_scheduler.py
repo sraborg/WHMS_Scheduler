@@ -243,9 +243,8 @@ class TestScheduler(unittest.TestCase):
 
         tasks = [t1, t2]
         adp = AntDependencyTree(tasks)
-        choices = adp.node_choices(ant)
-        prediction = [adp.get_node(t2)]
-        self.assertTrue(prediction == choices)
+        choices = adp.node_choices(ant, 1)
+        self.assertTrue(adp.get_ant_task(t1) not in choices)
 
     def test_ant_visit_pass_correct_path(self):
         t1 = DummyTask()
@@ -256,15 +255,15 @@ class TestScheduler(unittest.TestCase):
 
         tasks = [t1, t2]
         adp = AntDependencyTree(tasks)
-        t1_node = adp.get_node(t1)
+        t1_node = adp.get_ant_task(t1)
         t1_time = datetime.now().timestamp()
         ant.visit(t1_node, t1_time)
-        t2_node = adp.get_node(t2)
+        t2_node = adp.get_ant_task(t2)
         t2_time = datetime.now().timestamp()
         ant.visit(t2_node, t2_time)
 
         ant_visited_nodes = list(ant.get_visited_nodes())
-        prediction = [t1_node, t2_node]
+        prediction = [(t1_node, t1_time), (t2_node, t2_time)]
         self.assertTrue(prediction == ant_visited_nodes)
 
     def test_ant_last_visite_node_pass(self):
@@ -276,17 +275,30 @@ class TestScheduler(unittest.TestCase):
 
         tasks = [t1, t2]
         adp = AntDependencyTree(tasks)
-        t1_node = adp.get_node(t1)
+        t1_node = adp.get_ant_task(t1)
         t1_time = datetime.now().timestamp()
         ant.visit(t1_node, t1_time)
-        t2_node = adp.get_node(t2)
+        t2_node = adp.get_ant_task(t2)
         t2_time = datetime.now().timestamp()
         ant.visit(t2_node, t2_time)
 
         last_visited_node = ant.last_visited_node()
 
-        prediction = t2_node
-        self.assertTrue(prediction is last_visited_node)
+        prediction = (t2_node, t2_time)
+        self.assertTrue(prediction == last_visited_node)
+
+    def test_adt_node_choices_fail_duplicate(self):
+        t1 = DummyTask()
+        t2 = DummyTask()
+        tasklist = [t1, t2]
+        ant = Ant()
+        adt = AntDependencyTree(tasklist)
+
+        t1_node = adt.get_ant_task(t1)
+        t1_time = datetime.now().timestamp()
+        ant.visit(t1_node, t1_time)
+
+        self.assertTrue(t1_node not in adt.node_choices(ant, t1_time + 5))
 
 
     '''
