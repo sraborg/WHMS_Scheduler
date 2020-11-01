@@ -3,7 +3,7 @@ import numpy as np
 from task import AbstractTask, DummyTask, SleepTask, AntTask
 from datetime import datetime
 from typing import List, Dict, Tuple
-from math import ceil
+from math import ceil, e
 import random
 import copy
 
@@ -26,8 +26,26 @@ class SchedulerFactory:
         return scheduler
 
     @classmethod
-    def simulated_annealing(cls):
-        return SimulateAnnealingScheduler()
+    def simulated_annealing(cls,
+                            solution_space_size=10000,
+                            max_iterations=100,
+                            threshold=0.01,
+                            generational_threshold=10,
+                            start_time=None,
+                            verbose=False,
+                            invalid_schedule_value=-1000.0,):
+
+        if start_time is None:
+            start_time = datetime.now()
+
+        return SimulateAnnealingScheduler(
+                            solution_space_size=solution_space_size,
+                            max_iterations=max_iterations,
+                            threshold=threshold,
+                            generational_threshold=generational_threshold,
+                            start_time=start_time,
+                            verbose=verbose,
+                            invalid_schedule_value=invalid_schedule_value)
 
     @classmethod
     def ant_scheduler(cls,
@@ -345,30 +363,24 @@ class RandomScheduler(AbstractScheduler):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.max_iterations = kwargs.get("max_iterations", 1000)
+        self.solution_space_size = 10000
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
-        new_tasklist = self._initialize_tasklist(tasklist, interval)
+        print("Generating Schedule with Random Scheduler")
+        new_task_list = self._initialize_tasklist(tasklist, interval)
 
-        valid = False
-        schedule = None
-        i = 0
-        print("Generating Schedule at Random")
-        while not valid:
-            if self.verbose:
-                print("Attempt: " + str(i + 1))
-            schedule = random.sample(new_tasklist, len(new_tasklist))
-            valid = self._validate_schedule(schedule)
+        # Generate possible schedules
+        best_solution = None
+        best_solution_value = 0
 
-            if valid:
-                if self.verbose:
-                    print("Valid Schedule Found")
-                break
-            elif i >= self.max_iterations:
-                raise ValueError("Failed to generate a valid schedule after " + str(self.max_iterations) + " attempts")
+        for i in range(self.solution_space_size):
+            current_solution = random.sample(new_task_list, len(new_task_list))
+            current_solution_value = self.simulate_execution(current_solution)
+            if current_solution_value > best_solution_value:
+                best_solution = current_solution
+                best_solution_value = current_solution_value
 
-            i += 1
-
-        return schedule
+        return best_solution
 
 
 class GeneticScheduler(MetaHeuristicScheduler):
@@ -915,6 +927,105 @@ class AntDependencyTree:
 
 
 class SimulateAnnealingScheduler(MetaHeuristicScheduler):
-    def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
-        pass
 
+    linear_decay = 0
+    geometric_decay = 1
+    slow_decay = 2
+
+    def __init__(self, **kwargs):
+        """
+
+        :param kwargs:
+        """
+        super().__init__(**kwargs)
+        self.temperature = kwargs.get("temperature", 10000)
+        self.solution_space_size = kwargs.get("solution_space_size", 10000)
+        self.decay_method = kwargs.get("decay_method", SimulateAnnealingScheduler.geometric_decay)
+        self.decay_constant = 0.99
+        self.elitism = True
+        self.num_neighbors = 2
+
+    def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
+        print("Generating Schedule with Simulated Annealing")
+        new_task_list = self._initialize_tasklist(tasklist, interval)
+
+        # Generate possible schedules
+        solution_space = []
+        for i in range(self.solution_space_size):
+            solution_space.append(random.sample(new_task_list, len(new_task_list)))
+
+        current_state = solution_space[0]
+        current_state_energy = self._energy(current_state)
+        best_solution = current_state
+        best_solution_value = self.simulate_execution(best_solution)
+
+        converged = False
+        i = 0
+        temp = self.temperature
+        while not converged:
+            temp = self._temperature(temp, self.decay_method)
+
+            neighbor = random.choices(self._neighbors(current_state, solution_space))[0]
+            neighbor_energy = self._energy(neighbor)
+
+            # Possibly change state
+            if self._probability(current_state_energy, neighbor_energy, temp) >= random.uniform(0, 1):
+                current_state = neighbor
+                current_state_energy = neighbor_energy
+
+                if self.elitism:
+                    current_state_value = self.simulate_execution(current_state)
+
+                    if best_solution_value < current_state_value:
+                        best_solution = current_state
+                        best_solution_value = current_state_value
+
+            #
+            if i >= self.max_iterations:
+                break
+
+            i += 1
+
+        if self.elitism:
+            return best_solution
+        else:
+            return current_state
+
+    def _temperature(self, temp, decay_method=slow_decay):
+        """
+
+        :param temp:
+        :param decay_method:
+        :return:
+        """
+        if decay_method == SimulateAnnealingScheduler.geometric_decay:
+            return temp * self.decay_constant
+        elif decay_method == SimulateAnnealingScheduler.linear_decay:
+            return temp - self.decay_constant
+        elif decay_method == SimulateAnnealingScheduler.slow_decay:
+            return temp/(1 + self.decay_constant * temp)
+        else:
+            raise ValueError("Invalid Decay Method Used")
+
+    def _neighbors(self, state, solution_space):
+        """
+
+        :param state:
+        :param solution_space:
+        :return:
+        """
+        index = solution_space.index(state)
+        neighbors = []
+        for i in range(self.num_neighbors):
+            neighbors.append(solution_space[(index+i) % len(solution_space)])
+        return neighbors
+
+    def _probability(self, energy, energy_new, temp):
+        change = energy - energy_new
+        if change > 0:
+            return 1
+        else:
+            return e**(-change/temp)
+
+    def _energy(self, state):
+        return 1 / self.simulate_execution(state)
