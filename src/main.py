@@ -1,4 +1,5 @@
 from system import System
+from scheduler import SchedulerFactory
 from datetime import datetime, timedelta
 import random
 from task import TaskBuilder
@@ -41,22 +42,31 @@ total_value = sys.simulate_schedule(start_time=start.timestamp())
 print("Random Scheduler Value: " + str(total_value))
 '''
 sys.set_scheduler("genetic")
-sys._scheduler.start_time = start
-sys._scheduler.max_generations = 100
-sys._scheduler.generation_thresold = 20
-#sys.schedule_tasks()
-#gen_sch = sys._schedule
-#total_value = sys.simulate_schedule(start_time=start.timestamp())
-#print("Genetic Scheduler Value: " + str(total_value))
+sys.scheduler.start_time = start
+sys.scheduler.max_generations = 2
+sys.scheduler.generation_thresold = 20
+sys.schedule_tasks()
+gen_sch = sys._schedule
+total_gen_value = sys.simulate_schedule(start_time=start.timestamp())
 
 
-
-sys.set_scheduler("ant")
-sys._scheduler.start_time = start
-sys._scheduler.max_iterations = 100
+sys.scheduler = SchedulerFactory.ant_scheduler(
+    colony_size=20,
+    alpha=2,
+    beta=1,
+    epsilon=0.4,
+    max_iterations=4,
+    threshold=0.3,
+    generational_threshold=3
+)
+sys.scheduler.start_time = start
+sys.scheduler.max_iterations = 2
 sys.schedule_tasks()
 ant_sch = sys._schedule
-total_value = sys.simulate_schedule(start_time=start.timestamp())
-print("Ant Scheduler Value: " + str(total_value))
+total_ant_value = sys.simulate_schedule(start_time=start.timestamp())
+
+
+print("Genetic Scheduler Value: " + str(total_gen_value))
+print("Ant Scheduler Value: " + str(total_ant_value))
 
 #sys.execute_schedule()

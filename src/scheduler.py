@@ -25,15 +25,45 @@ class SchedulerFactory:
 
         return scheduler
 
+    @classmethod
+    def simulated_annealing(cls):
+        return SimulateAnnealingScheduler()
+
+    @classmethod
+    def ant_scheduler(cls,
+                      colony_size=25,
+                      alpha=1,
+                      beta=1,
+                      epsilon=0.5,
+                      max_iterations=100,
+                      threshold=0.01,
+                      generational_threshold=10,
+                      start_time=None,
+                      verbose=False,
+                      invalid_schedule_value=-1000.0,
+                      **kwargs):
+        return AntScheduler(
+            colony_size=colony_size,
+            alpha=alpha,
+            beta= beta,
+            epsilon= epsilon,
+            max_iterations=max_iterations,
+            threshold=threshold,
+            generational_threshold=generational_threshold,
+            start_time=start_time,
+            verbose=verbose,
+            invalid_schedule_value=invalid_schedule_value,
+            **kwargs)
+
 
 class AbstractScheduler(ABC):
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self._tasks = None
         self._optimization_horizon = None
-        self.start_time = None
-        self.verbose = False
-        self._invalid_schedule_value = -1000.0
+        self.start_time = kwargs.get("start_time", None)
+        self.verbose = kwargs.get("verbose", False)
+        self.invalid_schedule_value = kwargs.get("invalid_schedule_value", -1000.0)
 
     @property
     def optimization_horizon(self):
@@ -199,11 +229,11 @@ class AbstractScheduler(ABC):
 
 class MetaHeuristicScheduler(AbstractScheduler):
 
-    def __init__(self):
-        super().__init__()
-        self.max_iterations = 100
-        self.threshold = 0.01
-        self.generational_threshold = 10
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.max_iterations = kwargs.get("max_iterations", 100)
+        self.threshold = kwargs.get("threshold", 0.01)
+        self.generational_threshold = kwargs.get("generational_threshold", 10)
         self._generational_threshold_count = 0
 
     def is_converged(self, last_value: float, current_value: float):
@@ -222,6 +252,9 @@ class MetaHeuristicScheduler(AbstractScheduler):
         return False
 
     def max_iterations_reached(self):
+        pass
+
+    def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         pass
 
     @staticmethod
@@ -348,9 +381,9 @@ class GeneticScheduler(MetaHeuristicScheduler):
             tasklist = self._tasks
 
         if not AbstractScheduler._validate_schedule(schedule):
-            return self._invalid_schedule_value
+            return self.invalid_schedule_value
         elif not GeneticScheduler._all_tasks_present(tasklist, schedule):
-            return self._invalid_schedule_value
+            return self.invalid_schedule_value
         else:
             return self.simulate_execution(schedule)
 
@@ -417,11 +450,11 @@ class GeneticScheduler(MetaHeuristicScheduler):
 class AntScheduler(MetaHeuristicScheduler):
 
     def __init__(self, **kwargs):
-        super().__init__()
-        self.population_size = 500
-        self.alpha = 1
-        self.beta = 1
-        self.epsilon = .5
+        super().__init__(**kwargs)
+        self.colony_size = kwargs.get("colony_size", 15)
+        self.alpha = kwargs.get("alpha", 1)
+        self.beta = kwargs.get("beta", 1)
+        self.epsilon = kwargs.get("epsilon", 0.5)
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         """
@@ -441,12 +474,12 @@ class AntScheduler(MetaHeuristicScheduler):
         possible_solutions: List[Tuple[List[AbstractTask], int]] = [([], 0)]  # List of (Schedule, Value)
 
         while not converged:
-            print("Processing Swarm " + str(i) + " of " + str(self.population_size) + " ants")
+            print("Processing Swarm " + str(i) + " of " + str(self.colony_size) + " ants")
 
             # Initialization
             colony = []
 
-            for ant in range(self.population_size):
+            for ant in range(self.colony_size):
                 colony.append(Ant())
 
             for ant in colony:
@@ -472,17 +505,11 @@ class AntScheduler(MetaHeuristicScheduler):
                         break
 
                     # Make move
-                    next_node = self._edge_selection(ant, valid_choices, adt, step)
+                    next_node = self._edge_selection(ant, valid_choices, adt, interval+1)
                     time += node.wcet
                     adt.visit_node(ant, next_node, time)
 
-                if not self.verbose:
-                    if step % 10 == 0:
-                        print(".")
-                    else:
-                        print(".", end="")
-
-                step += 1
+                    step += 1
 
             # Update Best Solutions
             new_solutions = []
@@ -602,7 +629,7 @@ class AntScheduler(MetaHeuristicScheduler):
         :return:
         """
         if not AbstractScheduler._validate_schedule(schedule):
-            return self._invalid_schedule_value
+            return self.invalid_schedule_value
         else:
             return self.simulate_execution(schedule)
 
@@ -787,3 +814,9 @@ class AntDependencyTree:
     def evaporate_pheromones(self, evaporation_rate=0.8):
         for k,v in self._pheromones.items():
             self._pheromones[k] = list(map(lambda x: x * evaporation_rate, v))
+
+
+class SimulateAnnealingScheduler(MetaHeuristicScheduler):
+    def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
+        pass
+

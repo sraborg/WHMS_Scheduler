@@ -8,7 +8,7 @@ import time
 class System:
 
     def __init__(self, **kwargs):
-        self._scheduler = None
+        self.scheduler = None
         self._tasks = []
         self._schedule = []
         self._interval = 60            # in Seconds
@@ -24,7 +24,7 @@ class System:
     def simulate_schedule(self, schedule: List[AbstractTask] = None, **kwargs):
         if schedule is None:
             schedule = self._schedule
-        return self._scheduler.simulate_execution(schedule, **kwargs)
+        return self.scheduler.simulate_execution(schedule, **kwargs)
 
     def execute_schedule(self):
         print("Executing Schedule")
@@ -63,8 +63,8 @@ class System:
         return int(round(time.time() * 1000))
 
     def set_scheduler(self, name: str):
-        self._scheduler = SchedulerFactory.get_scheduler(name)
+        self.scheduler = SchedulerFactory.get_scheduler(name)
 
     def schedule_tasks(self):
-        self._schedule = self._scheduler.schedule_tasks(self._tasks, self._interval)
+        self._schedule = self.scheduler.schedule_tasks(self._tasks, self._interval)
 
