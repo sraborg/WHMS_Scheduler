@@ -42,9 +42,20 @@ total_value = sys.simulate_schedule(start_time=start.timestamp())
 print("Random Scheduler Value: " + str(total_value))
 '''
 sys.set_scheduler("genetic")
+sys.scheduler = SchedulerFactory.genetic_scheduler(
+    population_size=500,
+    breeding_percentage=0.2,
+    mutation_rate=0.05,
+    elitism=True,
+    max_iterations=1000,
+    threshold=0.02,
+    generational_threshold=20,
+    start_time=None,
+    verbose=False,
+    invalid_schedule_value=-100.0,
+)
+
 sys.scheduler.start_time = start
-sys.scheduler.max_generations = 2
-sys.scheduler.generation_thresold = 20
 sys.schedule_tasks()
 gen_sch = sys._schedule
 total_gen_value = sys.simulate_schedule(start_time=start.timestamp())
@@ -60,7 +71,6 @@ sys.scheduler = SchedulerFactory.ant_scheduler(
     generational_threshold=3
 )
 sys.scheduler.start_time = start
-sys.scheduler.max_iterations = 2
 sys.schedule_tasks()
 ant_sch = sys._schedule
 total_ant_value = sys.simulate_schedule(start_time=start.timestamp())

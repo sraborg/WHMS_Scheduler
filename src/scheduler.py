@@ -55,6 +55,32 @@ class SchedulerFactory:
             invalid_schedule_value=invalid_schedule_value,
             **kwargs)
 
+    @classmethod
+    def genetic_scheduler(cls,
+                          population_size=5000,
+                          breeding_percentage=0.05,
+                          mutation_rate=0.01,
+                          max_iterations=100,
+                          threshold=0.01,
+                          generational_threshold=10,
+                          start_time=None,
+                          verbose=False,
+                          invalid_schedule_value=-1000.0,
+                          elitism=True,
+                          **kwargs):
+        return GeneticScheduler(
+            population_size=population_size,
+            breeding_percentage=breeding_percentage,
+            mutation_rate=mutation_rate,
+            max_iterations=max_iterations,
+            threshold=threshold,
+            generational_threshold=generational_threshold,
+            start_time=start_time,
+            verbose=verbose,
+            invalid_schedule_value=invalid_schedule_value,
+            elitism=elitism,
+            **kwargs)
+
 
 class AbstractScheduler(ABC):
 
@@ -305,19 +331,12 @@ class GeneticScheduler(MetaHeuristicScheduler):
 
     """
     def __init__(self, **kwargs):
-        super().__init__()
-        if "max_generations" in kwargs:
-            self.max_generations = kwargs.get("max_generations")
-        else:
-            self.max_generations = 500
-
-        if "population_size" in kwargs:
-            self.population_size = kwargs.get("population_size")
-        else:
-            self.population_size = 5000
-        self.elitism = True
-        self.breeding_percentage = .05
-        self.mutation_rate = 0.01
+        super().__init__(**kwargs)
+        self.population_size = kwargs.get("population_size", 5000)
+        self.breeding_percentage = kwargs.get("breeding_percentage", 0.05)
+        self.mutation_rate = kwargs.get("mutation_rate", 0.01)
+        self.elitism = kwargs.get("elitism", True)
+        self.max_generations = self.max_iterations
         self._tasks = None
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
