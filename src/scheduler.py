@@ -42,6 +42,9 @@ class SchedulerFactory:
                       verbose=False,
                       invalid_schedule_value=-1000.0,
                       **kwargs):
+
+        if start_time is None:
+            start_time = datetime.now()
         return AntScheduler(
             colony_size=colony_size,
             alpha=alpha,
@@ -68,6 +71,24 @@ class SchedulerFactory:
                           invalid_schedule_value=-1000.0,
                           elitism=True,
                           **kwargs):
+        """
+
+        :param population_size:
+        :param breeding_percentage:
+        :param mutation_rate:
+        :param max_iterations:
+        :param threshold:
+        :param generational_threshold:
+        :param start_time:
+        :param verbose:
+        :param invalid_schedule_value:
+        :param elitism:
+        :param kwargs:
+        :return:
+        """
+        if start_time is None:
+            start_time = datetime.now()
+
         return GeneticScheduler(
             population_size=population_size,
             breeding_percentage=breeding_percentage,
@@ -81,18 +102,30 @@ class SchedulerFactory:
             elitism=elitism,
             **kwargs)
 
+    @classmethod
+    def random_scheduler(cls, max_iterations=1000):
+        return RandomScheduler(max_iterations=max_iterations)
+
 
 class AbstractScheduler(ABC):
 
     def __init__(self, **kwargs):
+        """
+
+        :param kwargs:
+        """
         self._tasks = None
         self._optimization_horizon = None
-        self.start_time = kwargs.get("start_time", None)
+        self.start_time = kwargs.get("start_time", datetime.now())
         self.verbose = kwargs.get("verbose", False)
         self.invalid_schedule_value = kwargs.get("invalid_schedule_value", -1000.0)
 
     @property
     def optimization_horizon(self):
+        """
+
+        :return:
+        """
         if self._optimization_horizon is None:
             if self._tasks is None:
                 raise ValueError("No tasks to schedule")
@@ -103,10 +136,21 @@ class AbstractScheduler(ABC):
 
     @staticmethod
     def calculate_optimization_horizon(tasklist):
+        """
+
+        :param tasklist:
+        :return:
+        """
         horizon = max(task.hard_deadline.timestamp() + task.wcet for task in tasklist)
         return horizon
 
     def _initialize_tasklist(self, tasklist: List[AbstractTask], interval):
+        """
+
+        :param tasklist:
+        :param interval:
+        :return:
+        """
         self._tasks = tasklist
         return tasklist + self.generate_sleep_tasks(tasklist, interval)
 
@@ -152,11 +196,13 @@ class AbstractScheduler(ABC):
 
         return True
 
-    '''Checks that every dependency for every task is scheduled prior to the task
-
-    '''
     @staticmethod
     def _verify_schedule_dependencies(schedule: List[AbstractTask]):
+        """ Checks that every dependency for every task is scheduled prior to the task
+
+        :param schedule:
+        :return:
+        """
         non_sleep_tasks = [task for task in schedule if not task.is_sleep_task()]
         prior_tasks = []
 
@@ -171,12 +217,14 @@ class AbstractScheduler(ABC):
 
         return True
 
-    '''Checks that every dependency for a task is scheduled prior to the task.
-
-        '''
     @staticmethod
     def _verify_task_dependencies(task, prior_tasks):
+        """ Checks that every dependency for a task is scheduled prior to the task.
 
+        :param task:
+        :param prior_tasks:
+        :return:
+        """
         if task.has_dependencies():
             dependencies = task.get_dependencies()
 
@@ -295,11 +343,8 @@ class MetaHeuristicScheduler(AbstractScheduler):
 class RandomScheduler(AbstractScheduler):
 
     def __init__(self, **kwargs):
-        super().__init__()
-        if "max_iterations" in kwargs:
-            self.max_iteration = kwargs.get("max_iterations")
-        else:
-            self.max_iteration = 100
+        super().__init__(**kwargs)
+        self.max_iterations = kwargs.get("max_iterations", 1000)
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
         new_tasklist = self._initialize_tasklist(tasklist, interval)
@@ -318,8 +363,8 @@ class RandomScheduler(AbstractScheduler):
                 if self.verbose:
                     print("Valid Schedule Found")
                 break
-            elif i >= self.max_iteration:
-                raise ValueError("Failed to generate a valid schedule after " + str(self.max_iteration) + " attempts")
+            elif i >= self.max_iterations:
+                raise ValueError("Failed to generate a valid schedule after " + str(self.max_iterations) + " attempts")
 
             i += 1
 
@@ -331,6 +376,10 @@ class GeneticScheduler(MetaHeuristicScheduler):
 
     """
     def __init__(self, **kwargs):
+        """
+
+        :param kwargs:
+        """
         super().__init__(**kwargs)
         self.population_size = kwargs.get("population_size", 5000)
         self.breeding_percentage = kwargs.get("breeding_percentage", 0.05)
@@ -340,7 +389,12 @@ class GeneticScheduler(MetaHeuristicScheduler):
         self._tasks = None
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
+        """
 
+        :param tasklist:
+        :param interval:
+        :return:
+        """
         new_task_list = self._initialize_tasklist(tasklist, interval)
         population = []
         i = 1
@@ -469,6 +523,10 @@ class GeneticScheduler(MetaHeuristicScheduler):
 class AntScheduler(MetaHeuristicScheduler):
 
     def __init__(self, **kwargs):
+        """
+
+        :param kwargs:
+        """
         super().__init__(**kwargs)
         self.colony_size = kwargs.get("colony_size", 15)
         self.alpha = kwargs.get("alpha", 1)
@@ -656,6 +714,9 @@ class AntScheduler(MetaHeuristicScheduler):
 class Ant:
 
     def __init__(self):
+        """
+
+        """
         self._search_complete = False
         self._path = []                 # [(AntTask, timestamp)]
         self._ant_tasks = []            # [(AntTask)]
@@ -719,6 +780,10 @@ class Ant:
 class AntDependencyTree:
 
     def __init__(self, tasklist: List[AbstractTask]):
+        """
+
+        :param tasklist:
+        """
         self._nodes = []
         self._pheromones: Dict[List[float]] = {}
         self._edge_visits: Dict[Tuple[int,int]] = {}
@@ -730,6 +795,11 @@ class AntDependencyTree:
         self._update_dependencies()
 
     def get_ant_task(self, task: AbstractTask):
+        """
+
+        :param task:
+        :return:
+        """
         node = list(filter(lambda x: x._task is task, self._nodes))
         return node[0]
 
@@ -799,7 +869,6 @@ class AntDependencyTree:
 
         #self._pheromones[edge] = self._pheromones.get(edge, 0) + 10000
 
-
     def update_pheromones(self, ant, fitness):
         """
 
@@ -825,12 +894,22 @@ class AntDependencyTree:
             self._edge_visits[key] = self._edge_visits[key] + 1
 
     def get_pheromone_value(self, key):
+        """
+
+        :param key:
+        :return:
+        """
         if key not in self._pheromones:
             return self.min_pheromone_amount
         else:
             return sum(self._pheromones[key]) / self._edge_visits[key]
 
     def evaporate_pheromones(self, evaporation_rate=0.8):
+        """
+
+        :param evaporation_rate:
+        :return:
+        """
         for k,v in self._pheromones.items():
             self._pheromones[k] = list(map(lambda x: x * evaporation_rate, v))
 

@@ -7,6 +7,9 @@ from typing import List, Tuple
 class AbstractNu(ABC):
 
     def __init__(self):
+        """
+
+        """
         self._x = None              # Timestamps
         self._y = None              # Values
         self._model = None
@@ -15,9 +18,19 @@ class AbstractNu(ABC):
 
     @abstractmethod
     def fit_model(self, values: List[Tuple[datetime, int]]):
+        """
+
+        :param values:
+        :return:
+        """
         self._x, self._y = zip(*values)              # Time, Values
 
     def eval(self, x):
+        """
+
+        :param x:
+        :return:
+        """
         if x < min(self._x) or x > max(self._x):
             return self._min_value
         elif self._f(x) < 0:
@@ -29,9 +42,17 @@ class AbstractNu(ABC):
 class NuRegression(AbstractNu):
 
     def __init__(self):
+        """
+
+        """
         super().__init__()
 
     def fit_model(self, values: List[Tuple[datetime, int]]):
+        """
+
+        :param values:
+        :return:
+        """
         super().fit_model(values)
         rank = len(self._y) - 2
         self._model = np.polyfit(list(self._x), list(self._y), rank)
@@ -42,15 +63,22 @@ class NuConstant(AbstractNu):
 
     def __init__(self, **kwargs):
         super().__init__()
-        if "constant" in kwargs:
-            self._value = kwargs.get("constant")
-        else:
-            self._value = 1
+        self._value = kwargs.get("constant", 1)
 
     def fit_model(self, values: List[Tuple[datetime, int]]):
+        """
+
+        :param values:
+        :return:
+        """
         pass
 
     def eval(self, x):
+        """
+
+        :param x:
+        :return:
+        """
         return self._value
 
 
@@ -68,3 +96,11 @@ class NuFactory:
             raise Exception("Invalid Analysis Type")
 
         return nu
+
+    @classmethod
+    def regression(cls):
+        return NuRegression()
+
+    @classmethod
+    def constant(cls, **kwargs):
+        return NuConstant(**kwargs)

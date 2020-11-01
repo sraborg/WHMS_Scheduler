@@ -1,5 +1,7 @@
 from system import System
 from scheduler import SchedulerFactory
+from analysis import AnalysisFactory
+from nu import NuFactory
 from datetime import datetime, timedelta
 import random
 from task import TaskBuilder
@@ -19,11 +21,11 @@ for i in range(10):
     tb.set_earliest_start(earliest_start)
     tb.set_soft_deadline(soft_deadline)
     tb.set_hard_deadline(hard_deadline)
-    tb.set_nu("Regression")
+    tb._nu = NuFactory.regression()
     tb.fit_model([(earliest_start.timestamp(), 0), (soft_deadline.timestamp(), random.randint(0, 1000)), (hard_deadline.timestamp(), 0)])
 
 
-    tb.set_analysis("duMmY")
+    tb._analysis = AnalysisFactory.dummy_analysis()
 
 
     #tb.add_dependencies(["t1", "t2"])
@@ -47,18 +49,18 @@ sys.scheduler = SchedulerFactory.genetic_scheduler(
     breeding_percentage=0.2,
     mutation_rate=0.05,
     elitism=True,
-    max_iterations=1000,
+    max_iterations=10,
     threshold=0.02,
-    generational_threshold=20,
-    start_time=None,
+    generational_threshold=2,
+    #start_time=None,
     verbose=False,
     invalid_schedule_value=-100.0,
 )
 
-sys.scheduler.start_time = start
+#sys.scheduler.start_time = start
 sys.schedule_tasks()
 gen_sch = sys._schedule
-total_gen_value = sys.simulate_schedule(start_time=start.timestamp())
+total_gen_value = sys.simulate_schedule()#start_time=start.timestamp())
 
 
 sys.scheduler = SchedulerFactory.ant_scheduler(
@@ -70,13 +72,18 @@ sys.scheduler = SchedulerFactory.ant_scheduler(
     threshold=0.3,
     generational_threshold=3
 )
-sys.scheduler.start_time = start
+#sys.scheduler.start_time = start
 sys.schedule_tasks()
 ant_sch = sys._schedule
-total_ant_value = sys.simulate_schedule(start_time=start.timestamp())
+total_ant_value = sys.simulate_schedule()#start_time=start.timestamp())
 
+sys.scheduler = SchedulerFactory.random_scheduler(max_iterations=200)
+random_sch = sys._schedule
+total_random_value = sys.simulate_schedule()#start_time=start.timestamp())
 
-print("Genetic Scheduler Value: " + str(total_gen_value))
 print("Ant Scheduler Value: " + str(total_ant_value))
+print("Genetic Scheduler Value: " + str(total_gen_value))
+print("Random Scheduler Value: " + str(total_random_value))
+
 
 #sys.execute_schedule()

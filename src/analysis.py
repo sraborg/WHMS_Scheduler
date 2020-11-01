@@ -6,30 +6,8 @@ from time import sleep
 class AbstractAnalysis(ABC):
 
     def __init__(self, **kwargs):
-        if "wcet" in kwargs:
-            self._wcet = kwargs.get("wcet")
-        else:
-            self._wcet = 1
-        if "wcbu" in kwargs:
-            self._wcbu = kwargs.get("wcbu")
-        else:
-            self._wcbu = 1
-
-    @property
-    def wcet(self):
-        return self._wcet
-
-    @wcet.setter
-    def wcet(self, cost):
-        self._wcet = cost
-
-    @property
-    def wcbu(self):
-        return self._wcbu
-
-    @wcbu.setter
-    def wcbu(self, cost):
-        self._wcbu = cost
+        self.wcet = kwargs.get("wcet", 1)
+        self.wcbu = kwargs.get("wcbu", 1)
 
     @abstractmethod
     def execute(self):
@@ -45,7 +23,7 @@ class DummyAnalysis(AbstractAnalysis):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._precision = (0, 0)
+        self.precision = kwargs.get("precision", (0, 0))
 
     def execute(self):
         """This function simulates running a dummy taskold.
@@ -55,8 +33,8 @@ class DummyAnalysis(AbstractAnalysis):
         The function randoms an execution time close to worst-case execution time (wcet). Note it can exceed it's deadline.
 
         """
-        lower_bound = self._wcet - self._precision[0]
-        upper_bound = self._wcet + self._precision[1]
+        lower_bound = self.wcet - self.precision[0]
+        upper_bound = self.wcet + self.precision[1]
 
         execution_time = random.uniform(lower_bound, upper_bound)
         print("Running Task: " + str(id(self)))
@@ -78,7 +56,7 @@ class SleepAnalysis(AbstractAnalysis):
 
         """
         print("Waiting... ")
-        sleep(self._wcet)
+        sleep(self.wcet)
 
 
 class AnalysisFactory:
@@ -94,4 +72,10 @@ class AnalysisFactory:
 
         return analysis
 
+    @classmethod
+    def dummy_analysis(cls):
+        return DummyAnalysis()
 
+    @classmethod
+    def sleep_analysis(cls):
+        return SleepAnalysis()
