@@ -304,15 +304,15 @@ class SleepTask(AbstractTask):
             builder = DummyTaskBuilder()
 
         super().__init__(builder)
-        if "runtime" in kwargs:
-            self.runtime = kwargs.get("runtime")
+        if "wcet" in kwargs:
+            wcet = kwargs.get("wcet")
         else:
-            self.runtime = 5
+            wcet = 5
 
         if "analysis_type" in kwargs and str.upper(kwargs.get("analysis_type")) == "SLEEPANALYSIS":
-            self._analysis = SleepAnalysis()
+            self._analysis = SleepAnalysis(wcet=wcet)
         else:
-            self._analysis = DummyAnalysis(wcet=self.runtime)
+            self._analysis = DummyAnalysis(wcet=wcet)
 
         # Set all points to now
         self.earliest_start = datetime.now()

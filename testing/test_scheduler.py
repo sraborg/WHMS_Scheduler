@@ -161,6 +161,7 @@ class TestScheduler(unittest.TestCase):
 
         sch = GeneticScheduler()
         schedule.append(task_1)
+        sch._tasks = schedule
 
         sleep_tasks = sch.generate_sleep_tasks(schedule, 60, start_time=start_time)
 
@@ -234,7 +235,7 @@ class TestScheduler(unittest.TestCase):
         most_fit = sch._selection(population)
         self.assertTrue(predicted_answer == most_fit)
 
-    def test_adp_node_choices_pass_preserves_dependencies(self):
+    def test_adt_node_choices_pass_preserves_dependencies(self):
         t1 = DummyTask()
         t2 = DummyTask()
         t1.add_dependency(t2)
@@ -242,9 +243,9 @@ class TestScheduler(unittest.TestCase):
         ant = Ant()
 
         tasks = [t1, t2]
-        adp = AntDependencyTree(tasks)
-        choices = adp.node_choices(ant, 1)
-        self.assertTrue(adp.get_ant_task(t1) not in choices)
+        adt = AntDependencyTree(tasks)
+        choices = adt.node_choices(ant, 1)
+        self.assertTrue(adt.get_ant_task(t1) not in choices)
 
     def test_ant_visit_pass_correct_path(self):
         t1 = DummyTask()
@@ -300,6 +301,29 @@ class TestScheduler(unittest.TestCase):
 
         self.assertTrue(t1_node not in adt.node_choices(ant, t1_time + 5))
 
+    def test_adt_node_choices_pass_removes_visited_nodes(self):
+        tasks = []
+        ant = Ant()
+
+        # Generate 20 Task
+        for i in range(20):
+            t = DummyTask()
+            tasks.append(t)
+
+        adt = AntDependencyTree(tasks)
+
+        # Have ant visit first 10 AntTasks
+        for i, task in enumerate(tasks):
+            if i % 2 == 0:          # Ant visits even tasks
+                t = adt.get_ant_task(task)
+                ant.visit(t, datetime.now().timestamp())
+
+
+        choices = adt.node_choices(ant, 60)
+
+        # Fail should be empty
+        fail = [visited_task for visited_task in ant.get_completed_ant_tasks() if visited_task in choices]
+        self.assertTrue(len(fail) == 0)
 
     '''
     def test_adp_visit_node_pass_update_ant_position(self):

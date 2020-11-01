@@ -32,7 +32,7 @@ class AbstractScheduler(ABC):
         self._tasks = None
         self._optimization_horizon = None
         self.start_time = None
-        self.verbose = True
+        self.verbose = False
         self._invalid_schedule_value = -1000.0
 
     @property
@@ -55,7 +55,7 @@ class AbstractScheduler(ABC):
         return tasklist + self.generate_sleep_tasks(tasklist, interval)
 
     def generate_sleep_tasks(self, tasklist: List[AbstractTask], interval, **kwargs):
-
+        """
         optimization_horizon = None
         calculated_horizon = AbstractScheduler.calculate_optimization_horizon(tasklist)
 
@@ -63,18 +63,18 @@ class AbstractScheduler(ABC):
             optimization_horizon = calculated_horizon
         else:
             optimization_horizon = self._optimization_horizon
-
+        """
         if "start_time" in kwargs:
             start_time = kwargs.get("start_time")
         else:
             start_time = datetime.now()
 
-        # Calculate the number of dummy tasks needed
+        # Calculate the number of sleep tasks needed
         total_wcet = sum(task.wcet for task in tasklist)
-        dif = (optimization_horizon - start_time.timestamp()) - total_wcet
+        dif = (self.optimization_horizon - start_time.timestamp()) - total_wcet
         num_sleep_tasks = ceil(dif / interval)
 
-        # Generated Scheduled Dummy Tasks
+        # Generated Scheduled Sleep Tasks
         sleep_tasks = []
         for x in range(num_sleep_tasks):
             sleep_tasks.append(SleepTask(None, wcet=interval))
@@ -232,6 +232,7 @@ class MetaHeuristicScheduler(AbstractScheduler):
 
         return True
 
+
 class RandomScheduler(AbstractScheduler):
 
     def __init__(self, **kwargs):
@@ -267,7 +268,9 @@ class RandomScheduler(AbstractScheduler):
 
 
 class GeneticScheduler(MetaHeuristicScheduler):
+    """
 
+    """
     def __init__(self, **kwargs):
         super().__init__()
         if "max_generations" in kwargs:
@@ -290,7 +293,6 @@ class GeneticScheduler(MetaHeuristicScheduler):
         population = []
         i = 1
         converged = False
-        threshold_count = 0
         print("Generating Schedule Using Genetic Algorithm")
 
         # Initialize Population
@@ -336,6 +338,12 @@ class GeneticScheduler(MetaHeuristicScheduler):
         return best_fit
 
     def _fitness(self, schedule, tasklist=None):
+        """
+
+        :param schedule:
+        :param tasklist:
+        :return:
+        """
         if tasklist is None:
             tasklist = self._tasks
 
@@ -347,6 +355,12 @@ class GeneticScheduler(MetaHeuristicScheduler):
             return self.simulate_execution(schedule)
 
     def _selection(self, population, **kwargs):
+        """
+
+        :param population:
+        :param kwargs:
+        :return:
+        """
         values = []
         for schedule in population:
             values.append(self._fitness(schedule))
@@ -362,6 +376,12 @@ class GeneticScheduler(MetaHeuristicScheduler):
     ##
     # Creates the next generation of schudules. If "elitism is set", parents are carried over to next generation.
     def _crossover(self, parents, population_size):
+        """
+
+        :param parents:
+        :param population_size:
+        :return:
+        """
         next_generation = []
 
         if self.elitism:
@@ -378,7 +398,11 @@ class GeneticScheduler(MetaHeuristicScheduler):
         return next_generation
 
     def _mutation(self, population):
+        """
 
+        :param population:
+        :return:
+        """
         for schedule in population:
             for i, task in enumerate(schedule):
                 if random.random() <= self.mutation_rate:
@@ -397,8 +421,15 @@ class AntScheduler(MetaHeuristicScheduler):
         self.population_size = 500
         self.alpha = 1
         self.beta = 1
+        self.epsilon = .5
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
+        """
+
+        :param tasklist:
+        :param interval:
+        :return:
+        """
         self._tasks = tasklist
         converged = False
 
@@ -420,17 +451,17 @@ class AntScheduler(MetaHeuristicScheduler):
 
             for ant in colony:
 
-                # Place ants on random "Starting Node"
+                # Place ants on random "Starting Node" (e.g. the "top" of the graph).
                 node = random.choice(possible_starting_nodes)
                 time = self.start_time.timestamp()
 
                 adt.visit_node(ant, node, time)
                 step = 1
 
-                # Generate Path
+                # Generate Path for each ant
                 while not ant._search_complete:
 
-                    # Determine valid Node choices
+                    # Determine which nodes the ant can visit
                     valid_choices = adt.node_choices(ant, interval)
 
                     # Check for Path Termination (e.g. empty list or exceeded event horizon)
@@ -438,18 +469,18 @@ class AntScheduler(MetaHeuristicScheduler):
                         ant._search_complete = True
                         break
                     elif ant._time >= self.optimization_horizon:
-                        print("Ant (" + str(id(ant)) + ") lost")
                         break
-
 
                     # Make move
                     next_node = self._edge_selection(ant, valid_choices, adt, step)
                     time += node.wcet
                     adt.visit_node(ant, next_node, time)
 
-                if ant._search_complete & self.verbose:
-                   # print("Ant (" + str(id(ant)) + ") path complete. " + str(len(ant._path)) + " steps. " + str(ant._path))
-                    pass
+                if not self.verbose:
+                    if step % 10 == 0:
+                        print(".")
+                    else:
+                        print(".", end="")
 
                 step += 1
 
@@ -501,44 +532,55 @@ class AntScheduler(MetaHeuristicScheduler):
         :return:
         """
 
-        probabilities = []
-        last = ant.last_visited_node()
-        alpha = self.alpha
-        beta = self.beta / iteration
-        for choice in choices:
-            e = (last, choice)
-            p_value = adt.get_pheromone_value(e)
-            if p_value < 1:
-                p_value = -1*p_value
-                p_value = -1*(p_value**alpha)
-            else:
-                p_value = p_value ** alpha
+        if random.uniform(0,1) < self.epsilon / iteration:
+            return choices[random.randint(0, len(choices) - 1)]
+        else:
+            probabilities = []
+            last = ant.last_visited_node()
+            alpha = self.alpha
+            beta = self.beta / iteration
+            for choice in choices:
+                e = (last, choice)
+                p_value = adt.get_pheromone_value(e)
+                if p_value < 1:
+                    p_value = -1*p_value
+                    p_value = -1*(p_value**alpha)
+                else:
+                    p_value = p_value ** alpha
 
-            h_value = self._attractiveness(choice, last[1])
-            if h_value < 1:
-                h_value = -1 * h_value
-                h_value = -1 * (h_value ** beta)
-            else:
-                h_value = h_value ** beta
+                h_value = self._attractiveness(choice, last[1])
+                if h_value < 1:
+                    h_value = -1 * h_value
+                    h_value = -1 * (h_value ** beta)
+                else:
+                    h_value = h_value ** beta
 
-            value = p_value * h_value
+                value = p_value * h_value
 
 
-            probabilities.append(value)
+                probabilities.append(value)
 
-        # Shift probabilities to remove negative values
-        smallest = min(probabilities)
-        if smallest < 0:
-            probabilities = [p - smallest for p in probabilities]
+            # Shift probabilities to remove negative values
+            smallest = min(probabilities)
+            if smallest < 0:
+                probabilities = [p - smallest for p in probabilities]
 
-        norm = sum(probabilities)
-        probabilities = [p/norm for p in probabilities]
+            # Normalize
+            norm = sum(probabilities)
+            probabilities = [p/norm for p in probabilities]
 
-        node_choice = random.choices(choices, weights=probabilities)
-        return node_choice[0]
+            # Make a weighted Selection
+            node_choice = random.choices(choices, weights=probabilities)
+            return node_choice[0]
 
     def _attractiveness(self, Node, time):
+        """ Heuristic function that takes into consideration:
+        (1) the amount of value lost if the task is taken early
 
+        :param Node:
+        :param time:
+        :return:
+        """
         if Node.is_sleep_task():
             return 0
 
@@ -552,9 +594,13 @@ class AntScheduler(MetaHeuristicScheduler):
             utopia_value = Node.value(timestamp=utopia_point)
             return value_now - utopia_value
 
-
     def _fitness(self, schedule):
+        """ Provides a value for the given schedule. For invalid schedules, the "invalid schedule value" is returned.
+        Otherwise, the simulated value is returned.
 
+        :param schedule:
+        :return:
+        """
         if not AbstractScheduler._validate_schedule(schedule):
             return self._invalid_schedule_value
         else:
@@ -601,12 +647,22 @@ class Ant:
         return visited_nodes[-1]
 
     def visit(self, node: AntTask, timestamp):
+        """
+
+        :param node:
+        :param timestamp:
+        :return:
+        """
         self._time = timestamp
         self._path.append((node, timestamp))
         self._ant_tasks.append(node)
         self._schedule.append(node._task)
 
     def get_path_value(self):
+        """
+
+        :return:
+        """
         if not self._search_complete:
             raise ValueError("Ant has not completed path")
 
@@ -661,7 +717,7 @@ class AntDependencyTree:
         :return: List(AntTasks)
         """
         valid_choices = []
-        completed_ant_tasks = ant.get_completed_ant_tasks()
+        completed_ant_tasks = list(ant.get_completed_ant_tasks())
 
         # Remove nodes that have already been visited
         choices = [task for task in self._nodes if task not in completed_ant_tasks]
@@ -673,7 +729,7 @@ class AntDependencyTree:
 
         # If there are still nodes to visit, add SleepTask
         if not not valid_choices:
-            st = SleepTask(runtime=interval, analysis_type="SLEEPANALYSIS")
+            st = SleepTask(runtime=interval, analysis_type="SLEEPANALYSIS", wcet=interval)
             valid_choices.append(AntTask(st))
 
         return valid_choices
