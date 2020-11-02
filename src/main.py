@@ -36,13 +36,7 @@ for i in range(10):
         task.add_dependency(sys._tasks[i-1])
     sys.add_task(task)
 
-'''
-sys.set_scheduler("random")
-sys._scheduler.start_time = start
-sys.schedule_tasks()
-total_value = sys.simulate_schedule(start_time=start.timestamp())
-print("Random Scheduler Value: " + str(total_value))
-'''
+
 sys.set_scheduler("genetic")
 sys.scheduler = SchedulerFactory.genetic_scheduler(
     population_size=500,
@@ -58,24 +52,24 @@ sys.scheduler = SchedulerFactory.genetic_scheduler(
 )
 
 #sys.scheduler.start_time = start
-#sys.schedule_tasks()
-#gen_sch = sys._schedule
-#total_gen_value = sys.simulate_schedule()#start_time=start.timestamp())
+sys.schedule_tasks()
+gen_sch = sys._schedule
+total_gen_value = sys.simulate_schedule()#start_time=start.timestamp())
 
 
 sys.scheduler = SchedulerFactory.ant_scheduler(
-    colony_size=50,
+    colony_size=35,
     alpha=1,
     beta=1,
     epsilon=0.5,
-    max_iterations=100,
+    max_iterations=50,
     threshold=0.01,
     generational_threshold=10
 )
 #sys.scheduler.start_time = start
-#sys.schedule_tasks()
-#ant_sch = sys._schedule
-#total_ant_value = sys.simulate_schedule()#start_time=start.timestamp())
+sys.schedule_tasks()
+ant_sch = sys._schedule
+total_ant_value = sys.simulate_schedule()#start_time=start.timestamp())
 
 sys.scheduler = SchedulerFactory.random_scheduler(max_iterations=20000)
 sys.schedule_tasks()
@@ -83,14 +77,15 @@ random_sch = sys._schedule
 total_random_value = sys.simulate_schedule()#start_time=start.timestamp())
 
 sys.scheduler = SchedulerFactory.simulated_annealing(
-    max_iterations=10000
+    max_iterations=100000,
+    generational_threshold=10000,
 )
 sys.schedule_tasks()
 anneal_sch = sys._schedule
 total_anneal_value = sys.simulate_schedule()
 
-#print("Ant Scheduler Value: " + str(total_ant_value))
-#print("Genetic Scheduler Value: " + str(total_gen_value))
+print("Ant Scheduler Value: " + str(total_ant_value))
+print("Genetic Scheduler Value: " + str(total_gen_value))
 print("Random Scheduler Value: " + str(total_random_value))
 print("Simulated Annealing Scheduler Value " + str(total_anneal_value))
 

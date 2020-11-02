@@ -27,7 +27,7 @@ class SchedulerFactory:
 
     @classmethod
     def simulated_annealing(cls,
-                            solution_space_size=10000,
+                            temperature=10000,
                             max_iterations=100,
                             threshold=0.01,
                             generational_threshold=10,
@@ -39,7 +39,7 @@ class SchedulerFactory:
             start_time = datetime.now()
 
         return SimulateAnnealingScheduler(
-                            solution_space_size=solution_space_size,
+                            temperature=temperature,
                             max_iterations=max_iterations,
                             threshold=threshold,
                             generational_threshold=generational_threshold,
@@ -286,14 +286,18 @@ class AbstractScheduler(ABC):
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         pass
 
-    def simulate_execution(self, tasklist: List[AbstractTask], **kwargs):
+    def simulate_execution(self, tasklist: List[AbstractTask], start=None, **kwargs):
+        """
 
-        if "start_time" in kwargs:
-            time = kwargs.get("start_time")
-        elif self.start_time is None:
-            time = datetime.now().timestamp()
-        else:
+        :param tasklist:
+        :param start:
+        :param kwargs:
+        :return:
+        """
+        if start is None:
             time = self.start_time.timestamp()
+        else:
+            time = start
 
         total_value = 0
 
@@ -941,7 +945,7 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         self.temperature = kwargs.get("temperature", 10000)
         self.solution_space_size = kwargs.get("solution_space_size", 10000)
         self.decay_method = kwargs.get("decay_method", SimulateAnnealingScheduler.geometric_decay)
-        self.decay_constant = 0.99
+        self.decay_constant = kwargs.get("decay_constant", 0.9)
         self.elitism = True
         self.num_neighbors = 2
 
@@ -949,12 +953,7 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         print("Generating Schedule with Simulated Annealing")
         new_task_list = self._initialize_tasklist(tasklist, interval)
 
-        # Generate possible schedules
-        solution_space = []
-        for i in range(self.solution_space_size):
-            solution_space.append(random.sample(new_task_list, len(new_task_list)))
-
-        current_state = solution_space[0]
+        current_state = random.sample(new_task_list, len(new_task_list))
         current_state_energy = self._energy(current_state)
         best_solution = current_state
         best_solution_value = self.simulate_execution(best_solution)
@@ -965,7 +964,7 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         while not converged:
             temp = self._temperature(temp, self.decay_method)
 
-            neighbor = random.choices(self._neighbors(current_state, solution_space))[0]
+            neighbor = self._neighbors(current_state)
             neighbor_energy = self._energy(neighbor)
 
             # Possibly change state
@@ -974,12 +973,18 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
                 current_state_energy = neighbor_energy
 
                 if self.elitism:
+                    old_best_value = best_solution_value
                     current_state_value = self.simulate_execution(current_state)
 
                     if best_solution_value < current_state_value:
                         best_solution = current_state
                         best_solution_value = current_state_value
 
+                    if self.is_converged(old_best_value, best_solution_value):
+                        converged = True
+                        break
+                else:
+                    pass
             #
             if i >= self.max_iterations:
                 break
@@ -1007,18 +1012,54 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         else:
             raise ValueError("Invalid Decay Method Used")
 
-    def _neighbors(self, state, solution_space):
+    def _neighbors(self, state):
         """
 
         :param state:
         :param solution_space:
         :return:
         """
-        index = solution_space.index(state)
-        neighbors = []
-        for i in range(self.num_neighbors):
-            neighbors.append(solution_space[(index+i) % len(solution_space)])
-        return neighbors
+
+        """
+                index = solution_space.index(state)
+                neighbors = []
+                for i in range(self.num_neighbors):
+                    neighbors.append(solution_space[(index+i) % len(solution_space)])
+                return neighbors
+        """
+
+        if random.uniform(0, 1) < 0.5:
+            return self._reverse(state)
+        else:
+            return self._transport(state)
+
+    def _reverse(self, state):
+        """
+
+        :param state:
+        :return:
+        """
+        new_state = copy.copy(state)
+        index = random.randint(0, len(new_state) - 1)
+        next_index = random.randint(0, len(new_state) - 1)
+        temp = new_state[index]
+        new_state[index] = new_state[next_index]
+        new_state[next_index] = temp
+
+        return new_state
+
+    def _transport(self, state):
+        new_state = copy.copy(state)
+        index = random.randint(0, len(new_state) - 1)
+        next_index = random.randint(index, len(new_state) - 1)
+        slice = state[index:next_index]
+
+        del new_state[index:next_index]
+
+        insertion_index = random.randint(0, len(new_state) - 1)
+        new_state[insertion_index:insertion_index] = slice
+
+        return new_state
 
     def _probability(self, energy, energy_new, temp):
         change = energy - energy_new
