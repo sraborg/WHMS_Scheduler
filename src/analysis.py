@@ -13,6 +13,10 @@ class AbstractAnalysis(ABC):
     def execute(self):
         pass
 
+    @abstractmethod
+    def name(self) -> str:
+        pass
+
 
 """A dummy Analysis Class
 
@@ -41,6 +45,8 @@ class DummyAnalysis(AbstractAnalysis):
         sleep(execution_time)
         print("Completed Task " + str(id(self)) + " after " + str(execution_time) + " seconds")
 
+    def name(self):
+        return "DUMMY"
 
 class SleepAnalysis(AbstractAnalysis):
 
@@ -57,6 +63,9 @@ class SleepAnalysis(AbstractAnalysis):
         """
         print("Waiting... ")
         sleep(self.wcet)
+
+    def name(self):
+        return "SLEEP"
 
 
 class AnalysisFactory:

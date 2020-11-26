@@ -2,6 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional, List, Tuple
+import csv
 import copy           # Used in task_builder to fix error with getTask
 from nu import NuFactory, NuRegression
 from analysis import AnalysisFactory
@@ -102,6 +103,7 @@ class AbstractTask(ABC):
 
     def __init__(self, builder: AbstractTaskBuilder):
         self._analysis = builder.analysis
+        self.ordered_by = ""
         self._nu = builder.nu
         self._earliest_start: datetime = builder.earliest_start
         self._soft_deadline: datetime = builder.soft_deadline
@@ -266,10 +268,71 @@ class AbstractTask(ABC):
     def is_periodic(self):
         return False
 
+    @staticmethod
+    def load_tasks(path):
+        tasks = []
+        tb = TaskBuilder()
+        with open(path) as csv_file:
+            csv_reader = csv.DictReader(csv_file, delimiter=",")
+
+            for row in csv_reader:
+                task = CustomTask()
+
+                task._earliest_start = row["earliest_start"]
+                task._soft_deadline = row["soft_deadline"]
+                task._hard_deadline = row["hard_deadline"]
+                task.ordered_by = row["ordered_by"]
+
+                # Handle Dependencies
+                dependent_task_indices = row["dependent_tasks"].split(";")
+                for dependency in dependent_task_indices:
+                    if len(dependency) > 0:
+                        index = int(dependency)
+                        task.add_dependency(tasks[index])
+
+                tasks.append(task)
+        return tasks
+                #tb._nu = NuFactory.regression()
+                #tb.fit_model([(earliest_start.timestamp(), 0), (soft_deadline.timestamp(), random.randint(0, 1000)),
+                              #(hard_deadline.timestamp(), 0)])
+
+    @staticmethod
+    def save_tasks(path, tasklist):
+        with open(path, mode='w') as csv_file:
+            fieldnames = [
+                "analysis",
+                "earliest_start",
+                "soft_deadline",
+                "hard_deadline",
+                "ordered_by",
+                "dependent_tasks"
+            ]
+            csv_writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            csv_writer.writeheader()
+
+            for i, task in enumerate(tasklist):
+                dependent = ''
+                dependent_delim = ""
+                for dependency in task.dependent_tasks:
+                    dependent += dependent_delim + str(tasklist.index(dependency))
+                    dependent_delim = ";"
+                csv_writer.writerow({
+                    'analysis': task.analysis.name(),
+                    'earliest_start': task.earliest_start,
+                    'soft_deadline': task.soft_deadline,
+                    'hard_deadline': task.hard_deadline,
+                    'ordered_by': task.ordered_by,
+                    'dependent_tasks': dependent,
+                    })
+
 
 class CustomTask(AbstractTask):
 
-    def __init__(self, builder: AbstractTaskBuilder):
+    def __init__(self, builder: AbstractTaskBuilder=None):
+
+        if builder is None:
+            builder = DummyTaskBuilder()
+
         super().__init__(builder)
 
 
@@ -382,6 +445,14 @@ class TaskDecorator(ABC):
     @hard_deadline.setter
     def hard_deadline(self, deadline):
         self._task.hard_deadline = deadline
+
+    @property
+    def ordered_by(self):
+        return self._task.ordered_by
+
+    @ordered_by.setter
+    def ordered_by(self, value):
+        self._task.ordered_by = value
 
     @property
     def dependent_tasks(self):
@@ -573,4 +644,3 @@ class DummyTaskBuilder(AbstractTaskBuilder):
     def build_task(self):
         task = CustomTask(self)  # Temp Fix for reference issue
         return task
-

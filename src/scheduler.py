@@ -137,6 +137,7 @@ class AbstractScheduler(ABC):
         self.start_time = kwargs.get("start_time", datetime.now())
         self.verbose = kwargs.get("verbose", False)
         self.invalid_schedule_value = kwargs.get("invalid_schedule_value", -1000.0)
+        self._utopian_schedule_value = None
 
     @property
     def optimization_horizon(self):
@@ -251,6 +252,11 @@ class AbstractScheduler(ABC):
                     return False
         return True
 
+    def load_tasklist(self, filename):
+        return AbstractTask.load_tasks(filename)
+
+    def save_tasklist(self, filename, tasklist):
+        AbstractTask.save_tasks(filename, tasklist)
     '''Checks that every dependency for a task is scheduled prior to the task.
     
     def _verify_dependencies(self, tasklist: List[AbstractTask], prior_tasks) -> bool:
@@ -321,6 +327,27 @@ class AbstractScheduler(ABC):
         time += task.wcet
 
         return value, time
+
+    @staticmethod
+    def utopian_schedule_value(schedule):
+
+        value = 0
+        for task in schedule:
+            datetime = task.soft_deadline
+            time = datetime.timestamp()
+            value += task.value(timestamp=time)
+
+        return value
+
+    def weighted_schedule_value(self, schedule, value=None):
+
+        if value is None:
+            value = self.simulate_execution(schedule, datetime.now().timestamp())
+
+        utopian_value = AbstractScheduler.utopian_schedule_value(schedule)
+        weighted_value = value / utopian_value
+
+        return weighted_value
 
 
 class MetaHeuristicScheduler(AbstractScheduler):
