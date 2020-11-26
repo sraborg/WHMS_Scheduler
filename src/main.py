@@ -4,38 +4,16 @@ from analysis import AnalysisFactory
 from nu import NuFactory
 from datetime import datetime, timedelta
 import random
-from task import TaskBuilder
+from task import UserTask
 
 sys = System()
 start = earliest_start = datetime.now() + timedelta(minutes=5)
-tb = TaskBuilder()
+#tb = TaskBuilder()
 
-random.seed()
-
-
-for i in range(10):
-    earliest_start = datetime.now() + timedelta(minutes=20)
-    soft_deadline = earliest_start + timedelta(minutes=random.randint(0, 10), seconds=random.randint(0, 30))
-    hard_deadline = soft_deadline + timedelta(minutes=random.randint(0, 10), seconds=random.randint(0, 30))
-
-    tb.set_earliest_start(earliest_start)
-    tb.set_soft_deadline(soft_deadline)
-    tb.set_hard_deadline(hard_deadline)
-    tb._nu = NuFactory.regression()
-    tb.fit_model([(earliest_start.timestamp(), 0), (soft_deadline.timestamp(), random.randint(0, 1000)), (hard_deadline.timestamp(), 0)])
+#random.seed()
 
 
-    tb._analysis = AnalysisFactory.dummy_analysis()
-
-
-    #tb.add_dependencies(["t1", "t2"])
-    #tb.add_dynamic_tasks([("T1", lambda: True)])
-
-    task = tb.build_task()
-    if i > 0 and random.randint(0, 1) is 1:
-        task.add_dependency(sys._tasks[i-1])
-    sys.add_task(task)
-
+sys._tasks = UserTask.generate_random_tasks(200)
 
 sys.set_scheduler("genetic")
 sys.scheduler = SchedulerFactory.genetic_scheduler(
@@ -99,7 +77,7 @@ print("Random Weighted Scheduler Value: " + str(weighted_random_value))
 print("Simulated Annealing Scheduler Value " + str(total_anneal_value))
 print("Simulated Weighted Annealing Scheduler Value " + str(weighted_anneal_value))
 '''
-sys.scheduler.save_tasklist("123seanl", sys._tasks)
+sys.scheduler.save_tasklist("123xxx.csv", sys._tasks)
 
 loaded_tasks = sys.scheduler.load_tasklist("123xxx.csv")
 print("s")

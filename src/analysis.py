@@ -18,13 +18,10 @@ class AbstractAnalysis(ABC):
         pass
 
 
-"""A dummy Analysis Class
-
-"""
-
-
 class DummyAnalysis(AbstractAnalysis):
+    """A dummy Analysis Class
 
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.precision = kwargs.get("precision", (0, 0))
@@ -47,6 +44,36 @@ class DummyAnalysis(AbstractAnalysis):
 
     def name(self):
         return "DUMMY"
+
+
+class HeartRateAnalysis(AbstractAnalysis):
+
+    def name(self) -> str:
+        return "HEART_RATE"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.wcet = 120
+        self.wcbu = 1
+
+    def execute(self):
+        print("Analyzing Heart Rate")
+        sleep(self.wcet)
+
+
+class BloodPressureAnalysis(AbstractAnalysis):
+    def name(self) -> str:
+        return "BLOOD_PRESSURE"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.wcet = 60
+        self.wcbu = 1
+
+    def execute(self):
+        print("Analyzing Heart Rate")
+        sleep(self.wcet)
+
 
 class SleepAnalysis(AbstractAnalysis):
 
@@ -76,6 +103,12 @@ class AnalysisFactory:
 
         if analysis_type.upper() == "DUMMY":
             analysis = DummyAnalysis()
+        elif analysis_type.upper() == "SLEEP":
+            analysis = SleepAnalysis()
+        elif analysis_type.upper() == "HEART_RATE":
+            analysis = HeartRateAnalysis()
+        elif analysis_type.upper() == "BLOOD_PRESSURE":
+            analysis = BloodPressureAnalysis()
         else:
             raise Exception("Invalid Analysis Type")
 

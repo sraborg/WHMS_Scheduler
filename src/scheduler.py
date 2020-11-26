@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from task import AbstractTask, DummyTask, SleepTask, AntTask
+from task import AbstractTask, DummyTask, SleepTask, AntTask, UserTask
 from datetime import datetime
 from typing import List, Dict, Tuple
 from math import ceil, e

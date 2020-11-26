@@ -1,4 +1,5 @@
 import unittest
+from system import System
 from datetime import datetime, timedelta
 from src.scheduler import *
 from src.task import SleepTask
@@ -103,9 +104,9 @@ class TestScheduler(unittest.TestCase):
         schedule = []
         task_1 = DummyTask()
         task_2 = DummyTask()
-        task_1._nu = NuFactory().get_nu("CONSTANT", constant=1)
+        task_1.nu = NuFactory().get_nu("CONSTANT", constant=1)
         task_1._analysis = DummyAnalysis(wcet=1)
-        task_2._nu = NuFactory().get_nu("CONSTANT", constant=2)
+        task_2.nu = NuFactory().get_nu("CONSTANT", constant=2)
         task_2._analysis = DummyAnalysis(wcet=1)
 
         schedule.append(task_1)
@@ -120,9 +121,9 @@ class TestScheduler(unittest.TestCase):
         schedule = []
         task_1 = DummyTask()
         task_2 = DummyTask()
-        task_1._nu = NuFactory().get_nu("CONSTANT", constant=1)
+        task_1.nu = NuFactory().get_nu("CONSTANT", constant=1)
         task_1._analysis = DummyAnalysis(wcet=1)
-        task_2._nu = NuFactory().get_nu("CONSTANT", constant=2)
+        task_2.nu = NuFactory().get_nu("CONSTANT", constant=2)
         task_2._analysis = DummyAnalysis(wcet=1)
 
         schedule.append(task_1)
@@ -183,21 +184,21 @@ class TestScheduler(unittest.TestCase):
         task_6 = DummyTask()
         task_7 = DummyTask()
         task_8 = DummyTask()
-        task_1._nu = NuFactory().get_nu("CONSTANT", constant=1)
+        task_1.nu = NuFactory().get_nu("CONSTANT", constant=1)
         task_1._analysis = DummyAnalysis(wcet=1)
-        task_2._nu = NuFactory().get_nu("CONSTANT", constant=23)
+        task_2.nu = NuFactory().get_nu("CONSTANT", constant=23)
         task_2._analysis = DummyAnalysis(wcet=1)
-        task_3._nu = NuFactory().get_nu("CONSTANT", constant=93)
+        task_3.nu = NuFactory().get_nu("CONSTANT", constant=93)
         task_3._analysis = DummyAnalysis(wcet=1)
-        task_4._nu = NuFactory().get_nu("CONSTANT", constant=15)
+        task_4.nu = NuFactory().get_nu("CONSTANT", constant=15)
         task_4._analysis = DummyAnalysis(wcet=1)
-        task_5._nu = NuFactory().get_nu("CONSTANT", constant=2)
+        task_5.nu = NuFactory().get_nu("CONSTANT", constant=2)
         task_5._analysis = DummyAnalysis(wcet=1)
-        task_6._nu = NuFactory().get_nu("CONSTANT", constant=3)
+        task_6.nu = NuFactory().get_nu("CONSTANT", constant=3)
         task_6._analysis = DummyAnalysis(wcet=1)
-        task_7._nu = NuFactory().get_nu("CONSTANT", constant=6)
+        task_7.nu = NuFactory().get_nu("CONSTANT", constant=6)
         task_7._analysis = DummyAnalysis(wcet=1)
-        task_8._nu = NuFactory().get_nu("CONSTANT", constant=28)
+        task_8.nu = NuFactory().get_nu("CONSTANT", constant=28)
         task_8._analysis = DummyAnalysis(wcet=1)
 
         # value = 132
@@ -324,6 +325,30 @@ class TestScheduler(unittest.TestCase):
         # Fail should be empty
         fail = [visited_task for visited_task in ant.get_completed_ant_tasks() if visited_task in choices]
         self.assertTrue(len(fail) == 0)
+
+    def test_task_save_and_load_tasklist_pass_match(self):
+        """ Test whether save/load tasklist preserves dependencies
+
+        """
+        tasklist = []
+        t1 = DummyTask()
+        t2 = DummyTask()
+        t3 = DummyTask()
+
+        t2.add_dependency(t1)
+        t3.add_dependency(t1)
+        t3.add_dependency(t2)
+
+        sys = System()
+        sys.add_task(t1)
+        sys.add_task(t2)
+        sys.add_task(t3)
+
+        sys.scheduler =  GeneticScheduler()
+        sys.scheduler.save_tasklist("test_save_load.cvs", sys._tasks)
+        loaded_tasks = sys.scheduler.load_tasklist("test_save_load.cvs")
+        self.assertEqual(sys._tasks, loaded_tasks)
+
 
     '''
     def test_adp_visit_node_pass_update_ant_position(self):

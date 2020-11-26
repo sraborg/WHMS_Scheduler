@@ -1,15 +1,16 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Tuple
 import csv
 import copy           # Used in task_builder to fix error with getTask
 from nu import NuFactory, NuRegression
 from analysis import AnalysisFactory
-from analysis import AbstractAnalysis, DummyAnalysis, SleepAnalysis
+from analysis import AbstractAnalysis, DummyAnalysis#, SleepAnalysis
 from nu import AbstractNu                                  # Type Hint
 from nu import NuRegression
 #from scheduler import Ant
+import random
 from time import sleep
 
 
@@ -102,12 +103,12 @@ class AbstractTaskBuilder(ABC):
 class AbstractTask(ABC):
 
     def __init__(self, builder: AbstractTaskBuilder):
-        self._analysis = builder.analysis
+        self.analysis = builder.analysis
         self.ordered_by = ""
-        self._nu = builder.nu
-        self._earliest_start: datetime = builder.earliest_start
-        self._soft_deadline: datetime = builder.soft_deadline
-        self._hard_deadline: datetime = builder.hard_deadline
+        self.nu = builder.nu
+        self.earliest_start: datetime = builder.earliest_start
+        self.soft_deadline: datetime = builder.soft_deadline
+        self.hard_deadline: datetime = builder.hard_deadline
         self._cost = None
         self._dependent_tasks: List[AbstractTask] = builder.dependent_tasks
         self._dynamic_tasks = builder.dynamic_tasks        # potential tasks
@@ -124,38 +125,6 @@ class AbstractTask(ABC):
     @cost.setter
     def cost(self, cost):
         self._cost = cost
-
-    @property
-    def analysis(self):
-        return self._analysis
-
-    @analysis.setter
-    def analysis(self, analysis):
-        self._analysis = analysis
-
-    @property
-    def earliest_start(self) -> datetime:
-        return self._earliest_start
-
-    @earliest_start.setter
-    def earliest_start(self, deadline: datetime):
-        self._earliest_start = deadline
-
-    @property
-    def soft_deadline(self) -> datetime:
-        return self._soft_deadline
-
-    @soft_deadline.setter
-    def soft_deadline(self, deadline: datetime):
-        self._soft_deadline = deadline
-
-    @property
-    def hard_deadline(self) -> datetime:
-        return self._hard_deadline
-
-    @hard_deadline.setter
-    def hard_deadline(self, deadline: datetime):
-        self._hard_deadline = deadline
 
     @property
     def dependent_tasks(self):
@@ -183,11 +152,11 @@ class AbstractTask(ABC):
 
     @property
     def wcet(self):
-        return self._analysis.wcet
+        return self.analysis.wcet
 
     @property
     def wcbu(self):
-        return self._analysis.wcbu
+        return self.analysis.wcbu
 
     @property
     def queue_time(self):
@@ -222,14 +191,14 @@ class AbstractTask(ABC):
         self._completion_time = time
 
     def execute(self):
-        self._analysis.execute()
+        self.analysis.execute()
 
     def value(self, **kwargs):
         if "timestamp" in kwargs:
             timestamp = kwargs.get("timestamp")
         else:
             timestamp = datetime.now().timestamp()
-        return self._nu.eval(timestamp)
+        return self.nu.eval(timestamp)
 
     def has_dependencies(self):
         return not not self._dependent_tasks
@@ -249,11 +218,10 @@ class AbstractTask(ABC):
     def add_dependency(self, dependency):
         self._dependent_tasks.append(dependency)
 
-    '''Removes a task from dependency list if present. Otherwise, does nothing
-    
-    '''
-
     def remove_dependency(self, dependency):
+        """Removes a task from dependency list if present. Otherwise, does nothing
+
+        """
         if self.is_dependency(dependency):
             self._dependent_tasks.remove(dependency)
         else:
@@ -263,10 +231,14 @@ class AbstractTask(ABC):
         return isinstance(self, DummyTask)
 
     def is_sleep_task(self):
-        return isinstance(self, SleepTask)
+        return isinstance(self.analysis, SleepTask)
 
     def is_periodic(self):
         return False
+
+    @abstractmethod
+    def name(self):
+        pass
 
     @staticmethod
     def load_tasks(path):
@@ -276,11 +248,12 @@ class AbstractTask(ABC):
             csv_reader = csv.DictReader(csv_file, delimiter=",")
 
             for row in csv_reader:
-                task = CustomTask()
 
-                task._earliest_start = row["earliest_start"]
-                task._soft_deadline = row["soft_deadline"]
-                task._hard_deadline = row["hard_deadline"]
+                task = UserTask()
+
+                task.earliest_start = datetime.fromtimestamp(float(row["earliest_start"]))
+                task.soft_deadline = datetime.fromtimestamp(float(row["soft_deadline"]))
+                task.hard_deadline = datetime.fromtimestamp(float(row["hard_deadline"]))
                 task.ordered_by = row["ordered_by"]
 
                 # Handle Dependencies
@@ -292,9 +265,7 @@ class AbstractTask(ABC):
 
                 tasks.append(task)
         return tasks
-                #tb._nu = NuFactory.regression()
-                #tb.fit_model([(earliest_start.timestamp(), 0), (soft_deadline.timestamp(), random.randint(0, 1000)),
-                              #(hard_deadline.timestamp(), 0)])
+
 
     @staticmethod
     def save_tasks(path, tasklist):
@@ -318,15 +289,78 @@ class AbstractTask(ABC):
                     dependent_delim = ";"
                 csv_writer.writerow({
                     'analysis': task.analysis.name(),
-                    'earliest_start': task.earliest_start,
-                    'soft_deadline': task.soft_deadline,
-                    'hard_deadline': task.hard_deadline,
+                    'earliest_start': task.earliest_start.timestamp(),
+                    'soft_deadline': task.soft_deadline.timestamp(),
+                    'hard_deadline': task.hard_deadline.timestamp(),
                     'ordered_by': task.ordered_by,
                     'dependent_tasks': dependent,
                     })
 
+    @staticmethod
+    def generate_random_tasks(quantity=10, dependencies=True, start: datetime = None, end:datetime=None, max_value:int=1000):
+        tasklist = []
+        random.seed()
 
-class CustomTask(AbstractTask):
+        if start is None:
+            start = datetime.now()
+        if end is None:
+            end = start + timedelta(minutes=60)
+
+        diff = end-start
+
+        for i in range(quantity):
+
+            # Random Start Time Between Start & (End - 10 min)
+            delta = random.uniform(0, (diff.total_seconds() / 60) - 10)
+            earliest_start = start + timedelta(minutes=delta)
+
+            # Random Soft Deadline Between (Earliest + 1 min) & (End - 5 min)
+            earliest_start_diff = earliest_start - end
+            delta = random.uniform(1, (earliest_start_diff.total_seconds() / 60) - 5)
+            soft_deadline = earliest_start + timedelta(minutes=delta) #timedelta(minutes=random.randint(0, 10), seconds=random.randint(0, 30))
+
+            # Random Hard Deadline Between (Soft + 1 & End)
+            soft_deadline_diff = soft_deadline - end
+            delta = random.uniform(1, soft_deadline_diff.total_seconds() / 60)
+            hard_deadline = soft_deadline + timedelta(minutes=delta) #timedelta(minutes=random.randint(0, 10), seconds=random.randint(0, 30))
+
+            t = UserTask()
+            t.earliest_start = earliest_start
+            t.soft_deadline = soft_deadline
+            t.hard_deadline = hard_deadline
+            nu = NuFactory.regression()
+            nu.fit_model([
+                (earliest_start.timestamp(), 0),
+                (soft_deadline.timestamp(), random.randint(0, max_value)),
+                (hard_deadline.timestamp(), 0)
+            ])
+            t.nu = nu
+
+            analysis_types = [
+                "BLOOD_PRESSURE",
+                "HEART_RATE"
+            ]
+            t.analysis = AnalysisFactory.get_analysis(random.choice(analysis_types))
+
+            names = [
+                "Dr Patterson",
+                "Dr Cortez",
+                "Dr Holland",
+                "Dr Page",
+                "Dr Boyd",
+                "Dr Zuniga",
+                "Dr Robinson"
+            ]
+
+            t.ordered_by = random.choice(names)
+
+            if dependencies and i > 0 and random.randint(0, 1) is 1:
+                t.add_dependency(tasklist[i - 1])
+            tasklist.append(t)
+
+        return tasklist
+
+class UserTask(AbstractTask):
 
     def __init__(self, builder: AbstractTaskBuilder=None):
 
@@ -334,6 +368,13 @@ class CustomTask(AbstractTask):
             builder = DummyTaskBuilder()
 
         super().__init__(builder)
+
+    def name(self):
+        return "User"
+
+
+class SystemTask(AbstractTask):
+    pass
 
 
 class DummyTask(AbstractTask):
@@ -350,16 +391,19 @@ class DummyTask(AbstractTask):
             self.runtime = 5
 
         if "analysis_type" in kwargs and str.upper(kwargs.get("analysis_type")) == "SLEEPANALYSIS":
-            self._analysis = SleepAnalysis()
+            self.analysis = SleepAnalysis()
         else:
-            self._analysis = DummyAnalysis(wcet=self.runtime)
+            self.analysis = DummyAnalysis(wcet=self.runtime)
 
     def execute(self):
-        self._analysis.execute()
+        self.analysis.execute()
         #sleep(self.runtime)
 
+    def name(self):
+        return "DUMMY"
 
-class SleepTask(AbstractTask):
+
+class SleepTask(SystemTask):
 
     def __init__(self, builder: AbstractTaskBuilder = None, **kwargs):
 
@@ -373,9 +417,9 @@ class SleepTask(AbstractTask):
             wcet = 5
 
         if "analysis_type" in kwargs and str.upper(kwargs.get("analysis_type")) == "SLEEPANALYSIS":
-            self._analysis = SleepAnalysis(wcet=wcet)
+            self.analysis = SleepAnalysis(wcet=wcet)
         else:
-            self._analysis = DummyAnalysis(wcet=wcet)
+            self.analysis = DummyAnalysis(wcet=wcet)
 
         # Set all points to now
         self.earliest_start = datetime.now()
@@ -383,12 +427,14 @@ class SleepTask(AbstractTask):
         self.hard_deadline = self.earliest_start
 
     def execute(self):
-        self._analysis.execute()
+        self.analysis.execute()
         #sleep(self.runtime)
 
     def value(self, **kwargs):
         return 0
 
+    def name(self):
+        return "SLEEP"
 
 class TaskDecorator(ABC):
 
@@ -615,7 +661,7 @@ class TaskBuilder(AbstractTaskBuilder):
     def build_task(self):
 
         build_order = copy.copy(self)
-        task = CustomTask(build_order)                    # Temp Fix for reference issue
+        task = UserTask(build_order)                    # Temp Fix for reference issue
 
         if self.set_periodic():
             task = TaskWithPeriodicity(task)
@@ -642,5 +688,24 @@ class DummyTaskBuilder(AbstractTaskBuilder):
         super().__init__()
 
     def build_task(self):
-        task = CustomTask(self)  # Temp Fix for reference issue
+        task = Task(self)  # Temp Fix for reference issue
         return task
+
+
+class TaskFactory():
+
+    @staticmethod
+    def get_task(task_type: str, **kwargs) -> AbstractTask:
+
+        if task_type.upper() == "SLEEP":
+            return SleepTask(**kwargs)
+        elif task_type.upper() == "DUMMY":
+            return DummyTask()
+        else:
+            return Task()
+
+    @classmethod
+    def sleep_task(cls, wcet=5):
+        task = Task()
+        task.analysis = SleepAnalysis(wcet=wcet)
+        return SleepTask()
