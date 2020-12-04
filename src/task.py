@@ -6,7 +6,7 @@ import csv
 import copy           # Used in task_builder to fix error with getTask
 from nu import NuFactory, NuRegression
 from analysis import AnalysisFactory
-from analysis import AbstractAnalysis, DummyAnalysis#, SleepAnalysis
+from analysis import AbstractAnalysis, DummyAnalysis, SleepAnalysis
 from nu import AbstractNu                                  # Type Hint
 from nu import NuRegression
 #from scheduler import Ant

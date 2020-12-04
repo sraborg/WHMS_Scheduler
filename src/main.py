@@ -14,6 +14,7 @@ def genetic(args):
     start = earliest_start = datetime.now() + timedelta(minutes=5)
 
     sys._tasks = UserTask.generate_random_tasks(200)
+
     sys.set_scheduler("genetic")
     sys.scheduler = SchedulerFactory.genetic_scheduler(
         population_size=args.population_size,
@@ -52,6 +53,7 @@ def ant(args):
         generational_threshold=5
     )
     sys.scheduler.start_time = start
+    sys._tasks = UserTask.generate_random_tasks(200)
     sys.schedule_tasks()
     ant_sch = sys._schedule
     total_ant_value = sys.simulate_schedule()  # start_time=start.timestamp())
@@ -79,20 +81,21 @@ parser_genetic.add_argument('--invalid_schedule_value', type=int, help='bar help
 parser_genetic.add_argument('--elitism', type=bool, help='bar help', default=True)
 parser_genetic.set_defaults(func=genetic)
 
-'''
+
 # create the parser for the "ant" command
 parser_ant = subparsers.add_parser('ant', help='ant help')
-parser_genetic.add_argument('--colony_size', type=int, help='bar help', default=30)
-parser_genetic.add_argument('--alpha', type=int, help='bar help', default=1)
-parser_genetic.add_argument('--beta', type=int, help='bar help', default=-1)
-parser_genetic.add_argument('--epsilon', type=float, help='bar help', default=-0.5)
-#parser_genetic.add_argument('--threshold', type=float, help='bar help', default=0.01)
-#parser_genetic.add_argument('--generational_threshold', type=int, help='bar help', default=5)
-#parser_genetic.add_argument('--invalid_schedule_value', type=int, help='bar help', default=-100)
-#parser_genetic.add_argument('--elitism', type=bool, help='bar help', default=True)
-parser_genetic.set_defaults(func=ant)
+parser_ant.add_argument('--colony_size', type=int, help='bar help', default=30)
+parser_ant.add_argument('--alpha', type=int, help='bar help', default=1)
+parser_ant.add_argument('--beta', type=int, help='bar help', default=-1)
+parser_ant.add_argument('--epsilon', type=float, help='bar help', default=-0.5)
+parser_ant.add_argument('--max_iterations', type=int, help='bar help', default=10)
+parser_ant.add_argument('--threshold', type=float, help='bar help', default=0.01)
+parser_ant.add_argument('--generational_threshold', type=int, help='bar help', default=5)
+parser_ant.add_argument('--invalid_schedule_value', type=int, help='bar help', default=-100)
+parser_ant.add_argument('--elitism', type=bool, help='bar help', default=True)
+parser_ant.set_defaults(func=ant)
 
-'''
+
 
 # create the parser for the "annealing" command
 parser_annealing = subparsers.add_parser('annealing', help='Simulated Annealing help')
