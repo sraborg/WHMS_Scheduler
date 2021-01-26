@@ -121,8 +121,8 @@ class SchedulerFactory:
             **kwargs)
 
     @classmethod
-    def random_scheduler(cls, max_iterations=1000):
-        return RandomScheduler(max_iterations=max_iterations)
+    def random_scheduler(cls, sample_size=1000):
+        return RandomScheduler(sample_size=sample_size)
 
 
 class AbstractScheduler(ABC):
@@ -393,8 +393,7 @@ class RandomScheduler(AbstractScheduler):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.max_iterations = kwargs.get("max_iterations", 1000)
-        self.solution_space_size = 10000
+        self.sample_size = kwargs.get("sample_size", 1000)
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
         print("Generating Schedule with Random Scheduler")
@@ -404,7 +403,7 @@ class RandomScheduler(AbstractScheduler):
         best_solution = None
         best_solution_value = 0
 
-        for i in range(self.solution_space_size):
+        for i in range(self.sample_size):
             current_solution = random.sample(new_task_list, len(new_task_list))
             current_solution_value = self.simulate_execution(current_solution)
             if current_solution_value > best_solution_value:
