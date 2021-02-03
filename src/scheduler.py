@@ -687,6 +687,8 @@ class AntScheduler(MetaHeuristicScheduler):
             beta = self.beta / iteration
             for choice in choices:
                 e = (last, choice)
+
+                # Get Pheromone Value
                 p_value = adt.get_pheromone_value(e)
                 if p_value < 1:
                     p_value = -1*p_value
@@ -694,11 +696,13 @@ class AntScheduler(MetaHeuristicScheduler):
                 else:
                     p_value = p_value ** alpha
 
+                # Get Heuristic Value
                 h_value = self._attractiveness(choice, last[1])
-                if h_value < 1:
+
+                if h_value < 0:    # Stop creation of Complex Numbers
                     h_value = -1 * h_value
                     h_value = -1 * (h_value ** beta)
-                else:
+                elif h_value != 0:  # Stop Divide by Zero Error
                     h_value = h_value ** beta
 
                 value = p_value * h_value
@@ -954,6 +958,12 @@ class AntDependencyTree:
         """
         for k,v in self._pheromones.items():
             self._pheromones[k] = list(map(lambda x: x * evaporation_rate, v))
+
+
+class HeuristicScheduler(AbstractScheduler):
+
+    def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
+        pass
 
 
 class SimulateAnnealingScheduler(MetaHeuristicScheduler):

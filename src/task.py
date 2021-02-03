@@ -2,9 +2,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Optional, List, Tuple
+import pickle
 import csv
+import json
 import copy           # Used in task_builder to fix error with getTask
-from nu import NuFactory, NuRegression
+from nu import NuFactory, NuRegression, NuConstant
 from analysis import AnalysisFactory
 from analysis import AbstractAnalysis, DummyAnalysis, SleepAnalysis
 from nu import AbstractNu                                  # Type Hint
@@ -102,6 +104,7 @@ class AbstractTaskBuilder(ABC):
 
 class AbstractTask(ABC):
 
+    """
     def __init__(self, builder: AbstractTaskBuilder):
         self.analysis = builder.analysis
         self.ordered_by = ""
@@ -109,9 +112,29 @@ class AbstractTask(ABC):
         self.earliest_start: datetime = builder.earliest_start
         self.soft_deadline: datetime = builder.soft_deadline
         self.hard_deadline: datetime = builder.hard_deadline
+        self.periodicity: 0
         self._cost = None
         self._dependent_tasks: List[AbstractTask] = builder.dependent_tasks
         self._dynamic_tasks = builder.dynamic_tasks        # potential tasks
+        self._future_tasks = []                           # Tasks
+        self._queue_time = None
+        self._release_time: datetime = None
+        self._completion_time: datetime = None
+        self._execution_time: datetime = None
+    """
+
+    def __init__(self, **kwargs):
+        self.analysis = kwargs.get("analysis", None)
+        self.ordered_by = kwargs.get("ordered_by", "")
+        self.values = kwargs.get("values", [])
+        self.nu = kwargs.get("nu", None)
+        self.earliest_start: datetime = kwargs.get("earliest_start", None)
+        self.soft_deadline: datetime = kwargs.get("soft_deadline", None)
+        self.hard_deadline: datetime = kwargs.get("hard_deadline", None)
+        self.periodicity: int = kwargs.get("periodicity", 0)
+        self._cost = kwargs.get("cost", None)
+        self._dependent_tasks: List[AbstractTask] = kwargs.get("dependent_tasks", [])
+        self._dynamic_tasks = kwargs.get("dynamic_tasks", [])        # potential tasks
         self._future_tasks = []                           # Tasks
         self._queue_time = None
         self._release_time: datetime = None
@@ -240,6 +263,7 @@ class AbstractTask(ABC):
     def name(self):
         pass
 
+    """
     @staticmethod
     def load_tasks(path):
         tasks = []
@@ -251,10 +275,16 @@ class AbstractTask(ABC):
 
                 task = UserTask()
 
+                # Setup Analysis
+                task.analysis = AnalysisFactory.get_analysis(row["analysis"])
+
                 task.earliest_start = datetime.fromtimestamp(float(row["earliest_start"]))
                 task.soft_deadline = datetime.fromtimestamp(float(row["soft_deadline"]))
                 task.hard_deadline = datetime.fromtimestamp(float(row["hard_deadline"]))
                 task.ordered_by = row["ordered_by"]
+
+                # Setup Nu
+
 
                 # Handle Dependencies
                 dependent_task_indices = row["dependent_tasks"].split(";")
@@ -265,16 +295,57 @@ class AbstractTask(ABC):
 
                 tasks.append(task)
         return tasks
+    """
+
+    @staticmethod
+    def load_tasks(path):
+        tasks = []
+        tb = TaskBuilder()
+        with open(path, 'r') as json_file:
+            loaded_tasks = json.load(json_file)
+
+            for entry in loaded_tasks:
+
+                task = UserTask()
+
+                # Setup Analysis
+                task.analysis = AnalysisFactory.get_analysis(entry["analysis"])
+
+                task.earliest_start = datetime.fromtimestamp(float(entry["earliest_start"]))
+                task.soft_deadline = datetime.fromtimestamp(float(entry["soft_deadline"]))
+                task.hard_deadline = datetime.fromtimestamp(float(entry["hard_deadline"]))
+                task.ordered_by = entry["ordered_by"]
+                task.values = entry["values"]
+
+                # Setup Nu
+                nu = NuFactory.get_nu(entry["nu"])
+                nu.fit_model(task.values)
+                task.nu = nu
+
+                # Handle Dependencies
+                dependent_task_indices = entry["dependent_tasks"].split(";")
+                for dependency in dependent_task_indices:
+                    if len(dependency) > 0:
+                        index = int(dependency)
+                        task.add_dependency(tasks[index])
+
+                tasks.append(task)
+        return tasks
 
 
+
+    """
     @staticmethod
     def save_tasks(path, tasklist):
         with open(path, mode='w') as csv_file:
             fieldnames = [
                 "analysis",
                 "earliest_start",
+                "earliest_start_value",
                 "soft_deadline",
+                "soft_deadline_value",
                 "hard_deadline",
+                "hard_deadline_value",
                 "ordered_by",
                 "dependent_tasks"
             ]
@@ -282,19 +353,68 @@ class AbstractTask(ABC):
             csv_writer.writeheader()
 
             for i, task in enumerate(tasklist):
+
+                # Determine Dependencies
                 dependent = ''
                 dependent_delim = ""
                 for dependency in task.dependent_tasks:
                     dependent += dependent_delim + str(tasklist.index(dependency))
                     dependent_delim = ";"
-                csv_writer.writerow({
+
+                entry = {
+                    'analysis': task.analysis.name(),
+                    'earliest_start': task.earliest_start.timestamp(),
+                    #'earliest_start_value': task.nu.
+                    #'soft_deadline': task.soft_deadline.timestamp(),
+                    #'hard_deadline': task.hard_deadline.timestamp(),
+                    'ordered_by': task.ordered_by,
+                    'dependent_tasks': dependent,
+                    }
+
+                # Determine Values
+                if isinstance(task.nu, NuRegression):
+                    pass
+                elif isinstance(task.nu, NuConstant):
+                    entry['value'] = task.nu.eval()
+
+                csv_writer.writerow(entry)
+    """
+
+    @staticmethod
+    def save_tasks(path, tasklist):
+        with open(path, mode='w') as json_file:
+
+            entries = []
+
+            for i, task in enumerate(tasklist):
+
+                # Determine Dependencies
+                dependent = ''
+                dependent_delim = ""
+                for dependency in task.dependent_tasks:
+                    dependent += dependent_delim + str(tasklist.index(dependency))
+                    dependent_delim = ";"
+
+                entry = {
                     'analysis': task.analysis.name(),
                     'earliest_start': task.earliest_start.timestamp(),
                     'soft_deadline': task.soft_deadline.timestamp(),
                     'hard_deadline': task.hard_deadline.timestamp(),
                     'ordered_by': task.ordered_by,
                     'dependent_tasks': dependent,
-                    })
+                    'nu': task.nu.name(),
+                    'values': task.values,
+                }
+
+                # Determine Values
+                if isinstance(task.nu, NuRegression):
+                    pass
+                elif isinstance(task.nu, NuConstant):
+                    entry['value'] = task.nu.eval()
+
+                entries.append(entry)
+            json.dump(entries, json_file)
+
 
     @staticmethod
     def generate_random_tasks(quantity=10, dependencies=True, start: datetime = None, end:datetime=None, max_value:int=1000):
@@ -328,12 +448,13 @@ class AbstractTask(ABC):
             t.earliest_start = earliest_start
             t.soft_deadline = soft_deadline
             t.hard_deadline = hard_deadline
-            nu = NuFactory.regression()
-            nu.fit_model([
+            t.values = [
                 (earliest_start.timestamp(), 0),
                 (soft_deadline.timestamp(), random.randint(0, max_value)),
                 (hard_deadline.timestamp(), 0)
-            ])
+            ]
+            nu = NuFactory.regression()
+            nu.fit_model(t.values)
             t.nu = nu
 
             analysis_types = [
@@ -354,20 +475,23 @@ class AbstractTask(ABC):
 
             t.ordered_by = random.choice(names)
 
-            if dependencies and i > 0 and random.randint(0, 1) is 1:
+            if dependencies and i > 0 and random.randint(0, 1) == 1:
                 t.add_dependency(tasklist[i - 1])
             tasklist.append(t)
 
         return tasklist
 
+
 class UserTask(AbstractTask):
 
-    def __init__(self, builder: AbstractTaskBuilder=None):
-
+    def __init__(self, builder: AbstractTaskBuilder=None, **kwargs):
+        """
         if builder is None:
             builder = DummyTaskBuilder()
 
         super().__init__(builder)
+        """
+        super().__init__(**kwargs)
 
     def name(self):
         return "User"
@@ -410,7 +534,7 @@ class SleepTask(SystemTask):
         if builder is None:
             builder = DummyTaskBuilder()
 
-        super().__init__(builder)
+        super().__init__()
         if "wcet" in kwargs:
             wcet = kwargs.get("wcet")
         else:

@@ -10,11 +10,12 @@ class AbstractNu(ABC):
         """
 
         """
-        self._x = None              # Timestamps
-        self._y = None              # Values
+        self._x: datetime = None              # Timestamps
+        self._y: float = None              # Values
         self._model = None
         self._f = None
-        self._min_value = -0.001
+        self._min_regression_value = 0
+        self._invalid_time_value = -0.1
 
     @abstractmethod
     def fit_model(self, values: List[Tuple[datetime, int]]):
@@ -31,13 +32,16 @@ class AbstractNu(ABC):
         :param x:
         :return:
         """
-        if x < min(self._x) or x > max(self._x):
-            return self._min_value
-        elif self._f(x) < 0:
-            return 0
+        if x < min(self._x) or x > max(self._x):    # Out of scheduling window (too early/late)
+            return self._invalid_time_value
+        elif self._f(x) < 0:                        # Fixing negative values returned by regression
+            return self._min_regression_value
         else:
             return self._f(x)
 
+    @abstractmethod
+    def name(self) -> str:
+        pass
 
 class NuRegression(AbstractNu):
 
@@ -57,6 +61,9 @@ class NuRegression(AbstractNu):
         rank = len(self._y) - 2
         self._model = np.polyfit(list(self._x), list(self._y), rank)
         self._f = np.poly1d(self._model)
+
+    def name(self) -> str:
+        return "REGRESSION"
 
 
 class NuConstant(AbstractNu):
@@ -81,6 +88,8 @@ class NuConstant(AbstractNu):
         """
         return self._value
 
+    def name(self) -> str:
+        return "CONSTANT"
 
 class NuFactory:
 

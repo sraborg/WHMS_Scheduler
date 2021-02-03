@@ -17,7 +17,6 @@ def parent(args):
 def genetic_sch(args):
     sys = System()
     start = earliest_start = datetime.now() + timedelta(minutes=5)
-    sys._tasks = get_tasks(args)
 
     sys.set_scheduler("genetic")
     sys.scheduler = SchedulerFactory.genetic_scheduler(
@@ -34,6 +33,7 @@ def genetic_sch(args):
     )
 
     # sys.scheduler.start_time = start
+    sys._tasks = get_tasks(args)
     sys.schedule_tasks()
     gen_sch = sys._schedule
     total_gen_value = sys.simulate_schedule()  # start_time=start.timestamp())
