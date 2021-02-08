@@ -316,6 +316,7 @@ class AbstractTask(ABC):
                 task.hard_deadline = datetime.fromtimestamp(float(entry["hard_deadline"]))
                 task.ordered_by = entry["ordered_by"]
                 task.values = entry["values"]
+                task.periodicity = entry["periodicity"]
 
                 # Setup Nu
                 nu = NuFactory.get_nu(entry["nu"])
@@ -404,6 +405,7 @@ class AbstractTask(ABC):
                     'dependent_tasks': dependent,
                     'nu': task.nu.name(),
                     'values': task.values,
+                    'periodicity': task.periodicity,
                 }
 
                 # Determine Values
@@ -559,6 +561,7 @@ class SleepTask(SystemTask):
 
     def name(self):
         return "SLEEP"
+
 
 class TaskDecorator(ABC):
 
@@ -833,3 +836,4 @@ class TaskFactory():
         task = Task()
         task.analysis = SleepAnalysis(wcet=wcet)
         return SleepTask()
+

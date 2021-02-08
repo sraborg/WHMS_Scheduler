@@ -10,8 +10,8 @@ class AbstractNu(ABC):
         """
 
         """
-        self._x: datetime = None              # Timestamps
-        self._y: float = None              # Values
+        self._x: Tuple[datetime] = None              # Timestamps
+        self._y: Tuple[float] = None              # Values
         self._model = None
         self._f = None
         self._min_regression_value = 0
@@ -42,6 +42,9 @@ class AbstractNu(ABC):
     @abstractmethod
     def name(self) -> str:
         pass
+
+    def max_value(self):
+        return max(self._y)
 
 class NuRegression(AbstractNu):
 

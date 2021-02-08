@@ -72,14 +72,22 @@ def ant_sch(args):
 
 
 def annealing_sch(args):
+
     sys = System()
-    start = earliest_start = datetime.now() + timedelta(minutes=5)
+    start_time = get_start_time(args)
+
     sys._tasks = get_tasks(args)
 
     sys.scheduler = SchedulerFactory.simulated_annealing(
+        start_time=start_time,
         max_iterations=args.max_iterations,
         generational_threshold=args.generational_threshold,
     )
+
+    # Check for end_time
+    if args.end_time is not None and args.end_time > args.start_time:
+        sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
+
     sys.schedule_tasks()
     anneal_sch = sys._schedule
     total_anneal_value = sys.simulate_schedule()
@@ -114,6 +122,29 @@ def get_tasks(args):
         return UserTask.generate_random_tasks(args.generate_tasks)
 
 
+def get_start_time(args):
+    """
+
+    :param args:
+    :return:
+    """
+    if args.start_time is None:
+        return datetime.now() + timedelta(minutes=5)
+    else:
+        return datetime.fromtimestamp(args.start_time)
+
+
+def get_end_time(args):
+    """
+
+    :param args:
+    :return:
+    """
+    if args.end_time is None:
+        return datetime.now() + timedelta(minutes=5)
+    else:
+        return datetime.now() + timedelta(seconds=args.end_time)
+
 def after_parse(args, tasklist=None):
     if args.export_tasklist is not None:
         UserTask.save_tasks(args.export_tasklist, tasklist)
@@ -127,6 +158,8 @@ tasks = parser.add_mutually_exclusive_group(required=True)
 tasks.add_argument('-l', '--load_tasklist', type=str, help="")
 tasks.add_argument('-g', '--generate_tasks', type=int, help="")
 subparsers = parser.add_subparsers(help='sub-command help')
+parser.add_argument('--start_time', type=int, help="")
+parser.add_argument('--end_time', type=float, help="")
 
 #parser.add_argument("-g", "--generate_tasks", type=int, help="Generates Random Tasks")
 

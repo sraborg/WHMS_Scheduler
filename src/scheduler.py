@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from task import AbstractTask, DummyTask, SleepTask, AntTask, UserTask
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
-from math import ceil, e
+from math import ceil, floor, e
 import random
 import copy
 
@@ -32,6 +32,7 @@ class SchedulerFactory:
                             threshold=0.01,
                             generational_threshold=10,
                             start_time=None,
+                            end_time=None,
                             verbose=False,
                             invalid_schedule_value=-1000.0,):
 
@@ -134,24 +135,42 @@ class AbstractScheduler(ABC):
         """
         self._tasks = None
         self._optimization_horizon = None
-        self.start_time = kwargs.get("start_time", datetime.now())
+        self.start_time: datetime = kwargs.get("start_time", datetime.now())
+        self.end_time: datetime = kwargs.get("end_time", None)
         self.verbose = kwargs.get("verbose", False)
         self.invalid_schedule_value = kwargs.get("invalid_schedule_value", -1000.0)
         self._utopian_schedule_value = None
 
     @property
     def optimization_horizon(self):
-        """
+        """ Accessor method for the optimization_horizon attribute.
+
+        Note if the scheduler's end_time attribute is not set, an optimization_horizon will be calculated (based off the tasklist)
+        and the end_time will be set.
 
         :return:
         """
+
+        # Lazy-Load
         if self._optimization_horizon is None:
-            if self._tasks is None:
-                raise ValueError("No tasks to schedule")
+
+            # Simple case
+            if self.end_time is not None:
+                self._optimization_horizon = self.end_time - self.start_time
+
+            # Missing End_time case (Generate an optimization horizon & end_time)
             else:
-                self._optimization_horizon = AbstractScheduler.calculate_optimization_horizon(self._tasks)
+                if self._tasks is None:
+                    raise ValueError("No tasks to schedule")
+                else:
+                    self._optimization_horizon = AbstractScheduler.calculate_optimization_horizon(self._tasks)
+                    self.end_time = self.start_time + self._optimization_horizon
 
         return self._optimization_horizon
+
+    @optimization_horizon.setter
+    def optimization_horizon(self, value):
+        self._optimization_horizon = value
 
     @staticmethod
     def calculate_optimization_horizon(tasklist):
@@ -171,7 +190,9 @@ class AbstractScheduler(ABC):
         :return:
         """
         self._tasks = tasklist
-        return tasklist + self.generate_sleep_tasks(tasklist, interval)
+        new_tasklist = tasklist + self.generate_periodic_tasks(tasklist)
+        new_tasklist = new_tasklist + self.generate_sleep_tasks(tasklist, interval)
+        return new_tasklist
 
     def generate_sleep_tasks(self, tasklist: List[AbstractTask], interval, **kwargs):
         """
@@ -186,11 +207,11 @@ class AbstractScheduler(ABC):
         if "start_time" in kwargs:
             start_time = kwargs.get("start_time")
         else:
-            start_time = datetime.now()
+            start_time = self.start_time
 
         # Calculate the number of sleep tasks needed
         total_wcet = sum(task.wcet for task in tasklist)
-        dif = (self.optimization_horizon - start_time.timestamp()) - total_wcet
+        dif = self.optimization_horizon.total_seconds() - total_wcet
         num_sleep_tasks = ceil(dif / interval)
 
         # Generated Scheduled Sleep Tasks
@@ -199,6 +220,54 @@ class AbstractScheduler(ABC):
             sleep_tasks.append(SleepTask(None, wcet=interval))
 
         return sleep_tasks
+
+    def generate_periodic_tasks(self, tasklist: List[AbstractTask], **kwargs):
+        """
+
+        :param tasklist:
+        :param interval:
+        :param kwargs:
+        :return:
+        """
+        new_periodic_tasks = []
+
+        for task in tasklist:
+            num_periodic_tasks: int = 0
+
+            # Find Periodic tasks
+            if task.periodicity > 0:
+
+                # Determine How many future periodic tasks are possible
+                horizon = self.end_time - task.earliest_start
+                max_num_periodic_tasks: int = floor(horizon.total_seconds() / task.periodicity)
+
+                # Generate New Periodic Tasks
+                for i in range(max_num_periodic_tasks):
+
+                    shift: float = task.earliest_start.timestamp() + (num_periodic_tasks * task.periodicity)
+
+                    new_task: AbstractTask = copy.deepcopy(task)
+                    new_task.periodicity = -1
+
+                    earliest_start = new_task.earliest_start + timedelta(seconds=shift)
+                    soft_deadline = new_task.soft_deadline + timedelta(seconds=shift)
+                    hard_deadline = new_task.hard_deadline + timedelta(seconds=shift)
+                    max_value = new_task.nu.max_value()
+
+                    new_task.earliest_start = earliest_start
+                    new_task.soft_deadline = soft_deadline
+                    new_task.hard_deadline = hard_deadline
+                    new_task.values = [
+                        (earliest_start.timestamp(), 0),
+                        (soft_deadline.timestamp(), random.randint(0, max_value)),
+                        (hard_deadline.timestamp(), 0)
+                    ]
+
+                    new_task.nu.fit_model(new_task.values)
+                    new_periodic_tasks.append(new_task)
+
+        return new_periodic_tasks
+
 
     @staticmethod
     def _validate_schedule(tasklist: List[AbstractTask]) -> bool:
@@ -330,6 +399,11 @@ class AbstractScheduler(ABC):
 
     @staticmethod
     def utopian_schedule_value(schedule):
+        """
+
+        :param schedule:
+        :return:
+        """
 
         value = 0
         for task in schedule:
@@ -340,6 +414,12 @@ class AbstractScheduler(ABC):
         return value
 
     def weighted_schedule_value(self, schedule, value=None):
+        """
+
+        :param schedule:
+        :param value:
+        :return:
+        """
 
         if value is None:
             value = self.simulate_execution(schedule, datetime.now().timestamp())
@@ -358,8 +438,16 @@ class MetaHeuristicScheduler(AbstractScheduler):
         self.threshold = kwargs.get("threshold", 0.01)
         self.generational_threshold = kwargs.get("generational_threshold", 10)
         self._generational_threshold_count = 0
+        self._last_value: float = 0
+        self._current_value: float = 0
 
     def is_converged(self, last_value: float, current_value: float):
+        """
+
+        :param last_value:
+        :param current_value:
+        :return:
+        """
         delta = abs(last_value - current_value)
 
         if delta < self.threshold:
@@ -521,10 +609,8 @@ class GeneticScheduler(MetaHeuristicScheduler):
 
         return parent_sample
 
-    ##
-    # Creates the next generation of schudules. If "elitism is set", parents are carried over to next generation.
     def _crossover(self, parents, population_size):
-        """
+        """ Creates the next generation of schudules. If "elitism is set", parents are carried over to next generation.
 
         :param parents:
         :param population_size:
@@ -1054,14 +1140,6 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         :param state:
         :param solution_space:
         :return:
-        """
-
-        """
-                index = solution_space.index(state)
-                neighbors = []
-                for i in range(self.num_neighbors):
-                    neighbors.append(solution_space[(index+i) % len(solution_space)])
-                return neighbors
         """
 
         if random.uniform(0, 1) < 0.5:
