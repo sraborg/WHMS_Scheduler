@@ -163,7 +163,7 @@ class AbstractScheduler(ABC):
                 if self._tasks is None:
                     raise ValueError("No tasks to schedule")
                 else:
-                    self._optimization_horizon = AbstractScheduler.calculate_optimization_horizon(self._tasks)
+                    self._optimization_horizon = AbstractScheduler.calculate_optimization_horizon(self, self._tasks)
                     self.end_time = self.start_time + self._optimization_horizon
 
         return self._optimization_horizon
@@ -172,18 +172,19 @@ class AbstractScheduler(ABC):
     def optimization_horizon(self, value):
         self._optimization_horizon = value
 
-    @staticmethod
-    def calculate_optimization_horizon(tasklist):
+    def calculate_optimization_horizon(self, tasklist):
         """
 
         :param tasklist:
-        :return:
+        :return: the generated horizon as a timedelta
         """
-        horizon = max(task.hard_deadline.timestamp() + task.wcet for task in tasklist)
+        temp = [task.hard_deadline for task in tasklist]
+        latest_task = max([task.hard_deadline.timestamp() + task.wcet for task in tasklist])
+        horizon = datetime.fromtimestamp(latest_task) - self.start_time
         return horizon
 
     def _initialize_tasklist(self, tasklist: List[AbstractTask], interval):
-        """
+        """ Calls appropriate delegated functions to add sleep/periodic tasks
 
         :param tasklist:
         :param interval:

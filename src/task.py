@@ -432,6 +432,42 @@ class AbstractTask(ABC):
 
         for i in range(quantity):
 
+            t = UserTask()
+
+            # Setup Analysis
+            analysis_types = [
+                "BLOOD_PRESSURE",
+                "HEART_RATE"
+            ]
+            t.analysis = AnalysisFactory.get_analysis(random.choice(analysis_types))
+
+            names = [
+                "Dr Patterson",
+                "Dr Cortez",
+                "Dr Holland",
+                "Dr Page",
+                "Dr Boyd",
+                "Dr Zuniga",
+                "Dr Robinson"
+            ]
+
+            t.ordered_by = random.choice(names)
+
+            earliest_start = datetime.fromtimestamp(random.uniform(start.timestamp(),end.timestamp()))
+            soft_deadline = datetime.fromtimestamp(random.uniform(earliest_start.timestamp(), end.timestamp()))
+            hard_deadline = datetime.fromtimestamp(random.uniform(soft_deadline.timestamp(), end.timestamp()))
+
+            t.earliest_start = earliest_start
+            t.soft_deadline = soft_deadline
+            t.hard_deadline = hard_deadline
+
+            t.values = [
+                (earliest_start.timestamp(), 0),
+                (soft_deadline.timestamp(), random.randint(0, max_value)),
+                (hard_deadline.timestamp(), 0)
+            ]
+
+            """
             # Random Start Time Between Start & (End - 10 min)
             delta = random.uniform(0, (diff.total_seconds() / 60) - 10)
             earliest_start = start + timedelta(minutes=delta)
@@ -455,28 +491,13 @@ class AbstractTask(ABC):
                 (soft_deadline.timestamp(), random.randint(0, max_value)),
                 (hard_deadline.timestamp(), 0)
             ]
+            """
+
             nu = NuFactory.regression()
             nu.fit_model(t.values)
             t.nu = nu
 
-            analysis_types = [
-                "BLOOD_PRESSURE",
-                "HEART_RATE"
-            ]
-            t.analysis = AnalysisFactory.get_analysis(random.choice(analysis_types))
-
-            names = [
-                "Dr Patterson",
-                "Dr Cortez",
-                "Dr Holland",
-                "Dr Page",
-                "Dr Boyd",
-                "Dr Zuniga",
-                "Dr Robinson"
-            ]
-
-            t.ordered_by = random.choice(names)
-
+            # Random Chance to assign Dependencies
             if dependencies and i > 0 and random.randint(0, 1) == 1:
                 t.add_dependency(tasklist[i - 1])
             tasklist.append(t)

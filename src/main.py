@@ -16,10 +16,11 @@ def parent(args):
 # Sub-command functions
 def genetic_sch(args):
     sys = System()
-    start = earliest_start = datetime.now() + timedelta(minutes=5)
+    start_time = get_start_time(args)
 
     sys.set_scheduler("genetic")
     sys.scheduler = SchedulerFactory.genetic_scheduler(
+        start_time=start_time,
         population_size=args.population_size,
         breeding_percentage=args.breeding_percentage,
         mutation_rate=args.mutation_rate,
@@ -50,6 +51,7 @@ def ant_sch(args):
     start = earliest_start = datetime.now() + timedelta(minutes=5)
 
     sys.scheduler = SchedulerFactory.ant_scheduler(
+        start_time=start_time,
         colony_size=args.colony_size,
         alpha=args.alpha,
         beta=args.beta,

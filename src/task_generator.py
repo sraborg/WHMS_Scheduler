@@ -4,7 +4,6 @@ from task import UserTask
 
 
 def main():
-    print("Hello World!")
     parser = argparse.ArgumentParser()
     parser.add_argument('-q', '--quantity', type=int, help="", required=True)
     parser.add_argument('-e', '--export_tasklist',  type=str, help='export tasklist', default="generated_tasks.json")
@@ -15,6 +14,7 @@ def main():
 
     args = parser.parse_args()
 
+    print("Generating " + str(args.quantity) + " tasks.")
     tasks = UserTask.generate_random_tasks(
         args.quantity,
         args.dependencies,
