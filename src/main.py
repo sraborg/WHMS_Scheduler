@@ -48,7 +48,7 @@ def genetic_sch(args):
 
 def ant_sch(args):
     sys = System()
-    start = earliest_start = datetime.now() + timedelta(minutes=5)
+    start_time = get_start_time(args)
 
     sys.scheduler = SchedulerFactory.ant_scheduler(
         start_time=start_time,
@@ -60,7 +60,7 @@ def ant_sch(args):
         threshold=args.threshold,
         generational_threshold=5
     )
-    sys.scheduler.start_time = start
+    sys.scheduler.start_time = start_time
     sys._tasks = get_tasks(args)
     sys.schedule_tasks()
     ant_sch = sys._schedule
@@ -102,7 +102,7 @@ def annealing_sch(args):
 
 def random_sch(args):
     sys = System()
-    start = earliest_start = datetime.now() + timedelta(minutes=5)
+
     sys._tasks = get_tasks(args)
     sys.scheduler = SchedulerFactory.random_scheduler(sample_size=args.sample_size)
     sys.schedule_tasks()

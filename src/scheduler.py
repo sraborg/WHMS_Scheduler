@@ -140,6 +140,8 @@ class AbstractScheduler(ABC):
         self.verbose = kwargs.get("verbose", False)
         self.invalid_schedule_value = kwargs.get("invalid_schedule_value", -1000.0)
         self._utopian_schedule_value = None
+        self._flag_generate_sleep_tasks = True
+        self._flag_generate_periodic_tasks = True
 
     @property
     def optimization_horizon(self):
@@ -190,9 +192,17 @@ class AbstractScheduler(ABC):
         :param interval:
         :return:
         """
-        self._tasks = tasklist
-        new_tasklist = tasklist + self.generate_periodic_tasks(tasklist)
-        new_tasklist = new_tasklist + self.generate_sleep_tasks(tasklist, interval)
+        self._tasks = new_tasklist = tasklist
+
+        if self.end_time is None or self._optimization_horizon is None:
+            self._optimization_horizon = self.optimization_horizon          # Somewhat redundant
+
+        if self._flag_generate_periodic_tasks:
+            new_tasklist = tasklist + self.generate_periodic_tasks(tasklist)
+
+        if self._flag_generate_sleep_tasks:
+            new_tasklist = new_tasklist + self.generate_sleep_tasks(tasklist, interval)
+
         return new_tasklist
 
     def generate_sleep_tasks(self, tasklist: List[AbstractTask], interval, **kwargs):
@@ -661,6 +671,7 @@ class AntScheduler(MetaHeuristicScheduler):
         self.alpha = kwargs.get("alpha", 1)
         self.beta = kwargs.get("beta", 1)
         self.epsilon = kwargs.get("epsilon", 0.5)
+        self._flag_generate_sleep_tasks = False
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         """
@@ -669,32 +680,34 @@ class AntScheduler(MetaHeuristicScheduler):
         :param interval:
         :return:
         """
-        self._tasks = tasklist
-        converged = False
+        new_task_list = self._initialize_tasklist(tasklist, interval)
 
-        adt = AntDependencyTree(tasklist)
+        adt = AntDependencyTree(new_task_list)
+
+        # Get Valid starting nodes
         possible_starting_nodes = adt.node_choices(Ant(), interval)
         i = 1
         converged = False
         self._generational_threshold_count = 0
+
         possible_solutions: List[Tuple[List[AbstractTask], int]] = [([], 0)]  # List of (Schedule, Value)
 
         while not converged:
             print("Processing Swarm " + str(i) + " of " + str(self.colony_size) + " ants")
 
-            # Initialization
+            # Generate Ant Swarm
             colony = []
-
             for ant in range(self.colony_size):
                 colony.append(Ant())
 
+            # Send each Ant to explore
             for ant in colony:
 
                 # Place ants on random "Starting Node" (e.g. the "top" of the graph).
-                node = random.choice(possible_starting_nodes)
+                ant_task = random.choice(possible_starting_nodes)
                 time = self.start_time.timestamp()
 
-                adt.visit_node(ant, node, time)
+                adt.visit_node(ant, ant_task, time)
                 step = 1
 
                 # Generate Path for each ant
@@ -703,17 +716,18 @@ class AntScheduler(MetaHeuristicScheduler):
                     # Determine which nodes the ant can visit
                     valid_choices = adt.node_choices(ant, interval)
 
-                    # Check for Path Termination (e.g. empty list or exceeded event horizon)
+                    # Check for Path Termination (e.g. empty list or exceeded horizon)
                     if not valid_choices:
                         ant._search_complete = True
                         break
-                    elif ant._time >= self.optimization_horizon:
+                    # Check if the ant has taken too much time
+                    elif ant.simulated_time >= self.end_time.timestamp():
                         break
 
                     # Make move
-                    next_node = self._edge_selection(ant, valid_choices, adt, interval+1)
-                    time += node.wcet
-                    adt.visit_node(ant, next_node, time)
+                    next_ant_task = self._edge_selection(ant, valid_choices, adt, interval+1)
+                    time += ant_task.wcet
+                    adt.visit_node(ant, next_ant_task, time)
 
                     step += 1
 
@@ -853,9 +867,13 @@ class Ant:
         self._search_complete = False
         self._path = []                 # [(AntTask, timestamp)]
         self._ant_tasks = []            # [(AntTask)]
-        self._schedule = []             # [AbstractTasks]
+        self._schedule: List[AbstractTask] = []             # [AbstractTasks]
         self._path_value = None
-        self._time = 0
+        self._simulated_time = None
+
+    @property
+    def simulated_time(self):
+        return self._simulated_time
 
     def get_visited_nodes(self):
         """ Returns an iterator of all the nodes (AntTasks, timestamp) the ant has visited.
@@ -886,17 +904,18 @@ class Ant:
 
         return visited_nodes[-1]
 
-    def visit(self, node: AntTask, timestamp):
+    def visit(self, ant_task: AntTask, timestamp):
         """
 
-        :param node:
+        :param ant_task:
         :param timestamp:
         :return:
         """
-        self._time = timestamp
-        self._path.append((node, timestamp))
-        self._ant_tasks.append(node)
-        self._schedule.append(node._task)
+        self._simulated_time = timestamp
+        node = (ant_task, timestamp)
+        self._path.append(node)
+        self._ant_tasks.append(ant_task)
+        self._schedule.append(ant_task._task)
 
     def get_path_value(self):
         """
@@ -983,17 +1002,17 @@ class AntDependencyTree:
 
         return valid_choices
 
-    def visit_node(self, ant: Ant, node: AntTask, timestamp=None):
+    def visit_node(self, ant: Ant, ant_task: AntTask, timestamp=None):
         """
         :param ant:
-        :param node:
+        :param ant_task:
         :param timestamp:
         :return:
         """
 
         previous_node = ant.last_visited_node()
 
-        node.accept(ant, timestamp)
+        ant_task.accept(ant, timestamp)
 
 
 
