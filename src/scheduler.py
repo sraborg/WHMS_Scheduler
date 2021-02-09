@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from task import AbstractTask, DummyTask, SleepTask, AntTask, UserTask
+from task import AbstractTask, SleepTask, AntTask, UserTask
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
 from math import ceil, floor, e
@@ -122,8 +122,18 @@ class SchedulerFactory:
             **kwargs)
 
     @classmethod
-    def random_scheduler(cls, sample_size=1000):
-        return RandomScheduler(sample_size=sample_size)
+    def random_scheduler(cls,
+                         sample_size=1000,
+                         start_time = None,
+                         **kwargs):
+
+        if start_time is None:
+            start_time = datetime.now()
+
+        return RandomScheduler(
+            sample_size=sample_size,
+            start_time=start_time,
+            **kwargs)
 
 
 class AbstractScheduler(ABC):
@@ -214,11 +224,12 @@ class AbstractScheduler(ABC):
             optimization_horizon = calculated_horizon
         else:
             optimization_horizon = self._optimization_horizon
-        """
+
         if "start_time" in kwargs:
             start_time = kwargs.get("start_time")
         else:
             start_time = self.start_time
+        """
 
         # Calculate the number of sleep tasks needed
         total_wcet = sum(task.wcet for task in tasklist)
@@ -228,7 +239,7 @@ class AbstractScheduler(ABC):
         # Generated Scheduled Sleep Tasks
         sleep_tasks = []
         for x in range(num_sleep_tasks):
-            sleep_tasks.append(SleepTask(None, wcet=interval))
+            sleep_tasks.append(SleepTask(wcet=interval))
 
         return sleep_tasks
 
@@ -337,26 +348,14 @@ class AbstractScheduler(ABC):
 
     def save_tasklist(self, filename, tasklist):
         AbstractTask.save_tasks(filename, tasklist)
-    '''Checks that every dependency for a task is scheduled prior to the task.
-    
-    def _verify_dependencies(self, tasklist: List[AbstractTask], prior_tasks) -> bool:
 
-        for dependency in tasklist:
-            if not self._verify_dependency(dependency, prior_tasks):
-                return False
-
-        return True
-
-    def _verify_dependency(self, dependency: AbstractTask, prior_tasks: List[AbstractTask]) -> bool:
-
-        if dependency in prior_tasks:
-            return True
-        else:
-            return False
-   
-    '''
     @staticmethod
-    def _no_duplicate_tasks(tasklist: List[AbstractTask]):
+    def _no_duplicate_tasks(tasklist: List[AbstractTask]) -> bool:
+        """ Makes sure that there are no copies of an exact same Task
+
+        :param tasklist: The list of tasks
+        :return: True/False
+        """
         for task in tasklist:
 
             # ingore sleepTasks
@@ -370,6 +369,12 @@ class AbstractScheduler(ABC):
 
     @abstractmethod
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
+        """
+
+        :param tasklist:
+        :param interval:
+        :return:
+        """
         pass
 
     def simulate_execution(self, tasklist: List[AbstractTask], start=None, **kwargs):
@@ -397,6 +402,7 @@ class AbstractScheduler(ABC):
 
         return total_value
 
+    """
     @staticmethod
     def simulate_step(task, time):
         value = 0
@@ -407,7 +413,7 @@ class AbstractScheduler(ABC):
         time += task.wcet
 
         return value, time
-
+    """
     @staticmethod
     def utopian_schedule_value(schedule):
         """
@@ -418,8 +424,8 @@ class AbstractScheduler(ABC):
 
         value = 0
         for task in schedule:
-            datetime = task.soft_deadline
-            time = datetime.timestamp()
+            date_time = task.soft_deadline
+            time = date_time.timestamp()
             value += task.value(timestamp=time)
 
         return value
@@ -621,7 +627,7 @@ class GeneticScheduler(MetaHeuristicScheduler):
         return parent_sample
 
     def _crossover(self, parents, population_size):
-        """ Creates the next generation of schudules. If "elitism is set", parents are carried over to next generation.
+        """ Creates the next generation of schedules. If "elitism is set", parents are carried over to next generation.
 
         :param parents:
         :param population_size:
@@ -685,7 +691,7 @@ class AntScheduler(MetaHeuristicScheduler):
         adt = AntDependencyTree(new_task_list)
 
         # Get Valid starting nodes
-        possible_starting_nodes = adt.node_choices(Ant(), interval)
+        possible_starting_task = adt.ant_task_choices(Ant(), interval)
         i = 1
         converged = False
         self._generational_threshold_count = 0
@@ -704,7 +710,7 @@ class AntScheduler(MetaHeuristicScheduler):
             for ant in colony:
 
                 # Place ants on random "Starting Node" (e.g. the "top" of the graph).
-                ant_task = random.choice(possible_starting_nodes)
+                ant_task = random.choice(possible_starting_task)
                 time = self.start_time.timestamp()
 
                 adt.visit_node(ant, ant_task, time)
@@ -714,7 +720,7 @@ class AntScheduler(MetaHeuristicScheduler):
                 while not ant._search_complete:
 
                     # Determine which nodes the ant can visit
-                    valid_choices = adt.node_choices(ant, interval)
+                    valid_choices = adt.ant_task_choices(ant, interval)
 
                     # Check for Path Termination (e.g. empty list or exceeded horizon)
                     if not valid_choices:
@@ -936,13 +942,13 @@ class AntDependencyTree:
 
         :param tasklist:
         """
-        self._nodes = []
+        self._ant_tasks = []
         self._pheromones: Dict[List[float]] = {}
         self._edge_visits: Dict[Tuple[int,int]] = {}
         self.min_pheromone_amount = 0.001
 
         for task in tasklist:
-            self._nodes.append(AntTask(task))
+            self._ant_tasks.append(AntTask(task))
 
         self._update_dependencies()
 
@@ -952,7 +958,7 @@ class AntDependencyTree:
         :param task:
         :return:
         """
-        node = list(filter(lambda x: x._task is task, self._nodes))
+        node = list(filter(lambda x: x._task is task, self._ant_tasks))
         return node[0]
 
     def _update_dependencies(self):
@@ -962,12 +968,12 @@ class AntDependencyTree:
         :return: None
         """
 
-        for node in self._nodes:
+        for node in self._ant_tasks:
             dependencies = node._task.get_dependencies()
 
             for dependency in dependencies:
                 found = False
-                for other_node in self._nodes:
+                for other_node in self._ant_tasks:
                     if dependency is other_node._task:
                         found = True
                         node.add_dependency(other_node)
@@ -976,7 +982,7 @@ class AntDependencyTree:
                 if not found:
                     raise ValueError("Dependency Error")
 
-    def node_choices(self, ant: Ant, interval: float):
+    def ant_task_choices(self, ant: Ant, interval: float):
         """ Determines which nodes are available to the ant. In other words, it only excludes nodes (tasks) whose
             dependencies haven't been met or if it has already been visited by the ant.
 
@@ -987,10 +993,10 @@ class AntDependencyTree:
         valid_choices = []
         completed_ant_tasks = list(ant.get_completed_ant_tasks())
 
-        # Remove nodes that have already been visited
-        choices = [task for task in self._nodes if task not in completed_ant_tasks]
+        # Remove ant_tasks that have already been visited
+        choices = [ant_task for ant_task in self._ant_tasks if ant_task not in completed_ant_tasks]
 
-        # Only add nodes if their dependent nodes have already been visited
+        # Only add ant_tasks if their dependent nodes have already been visited
         for choice in choices:
             if all(map(lambda x: ant in x.visited_by,  choice.get_dependencies())):
                 valid_choices.append(choice)

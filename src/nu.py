@@ -94,6 +94,7 @@ class NuConstant(AbstractNu):
     def name(self) -> str:
         return "CONSTANT"
 
+
 class NuFactory:
 
     @staticmethod

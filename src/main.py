@@ -102,9 +102,13 @@ def annealing_sch(args):
 
 def random_sch(args):
     sys = System()
-
     sys._tasks = get_tasks(args)
-    sys.scheduler = SchedulerFactory.random_scheduler(sample_size=args.sample_size)
+    start_time = get_start_time(args)
+
+    sys.scheduler = SchedulerFactory.random_scheduler(
+        start_time=start_time,
+        sample_size=args.sample_size
+    )
     sys.schedule_tasks()
     random_sch = sys._schedule
     total_random_value = sys.simulate_schedule()  # start_time=start.timestamp())

@@ -245,7 +245,7 @@ class TestScheduler(unittest.TestCase):
 
         tasks = [t1, t2]
         adt = AntDependencyTree(tasks)
-        choices = adt.node_choices(ant, 1)
+        choices = adt.ant_task_choices(ant, 1)
         self.assertTrue(adt.get_ant_task(t1) not in choices)
 
     def test_ant_visit_pass_correct_path(self):
@@ -300,7 +300,7 @@ class TestScheduler(unittest.TestCase):
         t1_time = datetime.now().timestamp()
         ant.visit(t1_node, t1_time)
 
-        self.assertTrue(t1_node not in adt.node_choices(ant, t1_time + 5))
+        self.assertTrue(t1_node not in adt.ant_task_choices(ant, t1_time + 5))
 
     def test_adt_node_choices_pass_removes_visited_nodes(self):
         tasks = []
@@ -320,7 +320,7 @@ class TestScheduler(unittest.TestCase):
                 ant.visit(t, datetime.now().timestamp())
 
 
-        choices = adt.node_choices(ant, 60)
+        choices = adt.ant_task_choices(ant, 60)
 
         # Fail should be empty
         fail = [visited_task for visited_task in ant.get_completed_ant_tasks() if visited_task in choices]
