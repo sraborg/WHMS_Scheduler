@@ -34,7 +34,8 @@ class SchedulerFactory:
                             start_time=None,
                             end_time=None,
                             verbose=False,
-                            invalid_schedule_value=-1000.0,):
+                            invalid_schedule_value=-1000.0,
+                            **kwargs):
 
         if start_time is None:
             start_time = datetime.now()
@@ -46,7 +47,8 @@ class SchedulerFactory:
                             generational_threshold=generational_threshold,
                             start_time=start_time,
                             verbose=verbose,
-                            invalid_schedule_value=invalid_schedule_value)
+                            invalid_schedule_value=invalid_schedule_value,
+                            **kwargs)
 
     @classmethod
     def ant_scheduler(cls,
@@ -464,14 +466,51 @@ class MetaHeuristicScheduler(AbstractScheduler):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.duration = kwargs.get("duration", 1) # Duration Stored in minutes
         self.max_iterations = kwargs.get("max_iterations", 100)
         self.threshold = kwargs.get("threshold", 0.01)
         self.generational_threshold = kwargs.get("generational_threshold", 10)
         self._generational_threshold_count = 0
         self._last_value: float = 0
         self._current_value: float = 0
+        self._progress = 0
 
-    def is_converged(self, last_value: float, current_value: float):
+        self._flag_termination_by_duration = True
+        self._flag_termination_by_max_iteration = False
+        self._flag_termination_by_generational_delta = False
+
+    def _termination_by_duration(self, start_runtime: datetime) -> bool:
+        """ Checks whether an the algorithm has exceeded it's allowed duration.
+
+        :param start_runtime: The time the algorithm started
+        :return: True/False
+        """
+        elapsed_time = datetime.now() - start_runtime
+
+        progress: int = ceil((elapsed_time.total_seconds() / (self.duration * 60)*100))
+        if self._progress != progress:
+            self._progress = progress
+            if self.verbose:
+                print(str(progress)+"%")
+            elif progress % 10 == 0:
+                print(str(progress) + "%")
+        if progress >= 100:
+            return True
+
+        return False
+
+    def _termination_by_max_iterations(self, iteration: int) -> bool:
+        """ Checks whether the algorithm has reached its max iteration
+
+        :param iteration: current iteration
+        :return: True/False
+        """
+        if iteration >= self.max_iterations:
+            return True
+        else:
+            return False
+
+    def _termination_by_generational_delta(self, last_value: float, current_value: float):
         """
 
         :param last_value:
@@ -555,11 +594,12 @@ class GeneticScheduler(MetaHeuristicScheduler):
         :param interval:
         :return:
         """
+        print("Generating Schedule Using Genetic Algorithm")
+        start_runtime = datetime.now()
         new_task_list = self._initialize_tasklist(tasklist, interval)
         population = []
         i = 1
         converged = False
-        print("Generating Schedule Using Genetic Algorithm")
 
         # Initialize Population
         for x in range(self.population_size):
@@ -568,7 +608,8 @@ class GeneticScheduler(MetaHeuristicScheduler):
         current_best_schedule_value = 0
 
         while not converged:
-            print("Processing Generation " + str(i))
+            if self.verbose:
+                print("Processing Generation " + str(i))
 
             breeding_sample = self._selection(population)
             new_best_schedule_value = self._fitness(breeding_sample[0])
@@ -583,10 +624,20 @@ class GeneticScheduler(MetaHeuristicScheduler):
             else:
                 population = next_generation
 
-            # Termination Conditions
-            if i >= self.max_generations:
+            # Termination by Duration
+            if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
                 break
-            elif self.is_converged(current_best_schedule_value, new_best_schedule_value):
+
+            # Termination by Max Iteration
+            if self._flag_termination_by_max_iteration and self._termination_by_max_iterations(i):
+                print("Max iterations met" + str(i) + " | " + str(self.max_iterations))
+                break
+
+            # Termination by Generational Delta
+            if self._flag_termination_by_generational_delta and \
+                    self._termination_by_generational_delta(current_best_schedule_value, new_best_schedule_value):
+                print("Generational Delta Threshold Met")
+                print("Convergence Met after " + str(i) + " iterations")
                 converged = True
 
             # Prepare for next iteration
@@ -699,6 +750,8 @@ class AntScheduler(MetaHeuristicScheduler):
         :param interval:
         :return:
         """
+        print("Generating Schedule Using Ant Colony Algorithm")
+        start_runtime = datetime.now()
         new_task_list = self._initialize_tasklist(tasklist, interval)
 
         adt = AntDependencyTree(new_task_list)
@@ -712,7 +765,8 @@ class AntScheduler(MetaHeuristicScheduler):
         possible_solutions: List[Tuple[List[AbstractTask], int]] = [([], 0)]  # List of (Schedule, Value)
 
         while not converged:
-            print("Processing Swarm " + str(i) + " of " + str(self.colony_size) + " ants")
+            if self.verbose:
+                print("Processing Swarm " + str(i) + " of " + str(self.colony_size) + " ants")
 
             # Generate Ant Swarm
             colony = []
@@ -750,6 +804,10 @@ class AntScheduler(MetaHeuristicScheduler):
 
                     step += 1
 
+                # Termination by Duration - Stop the rest of the swarm from searching
+                if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
+                    break
+
             # Update Best Solutions
             new_solutions = []
             for ant in colony:
@@ -766,13 +824,20 @@ class AntScheduler(MetaHeuristicScheduler):
             if self.verbose:
                 print("Best Path ("+str(len(possible_solutions[0][0])) + "): " + str(new_best_schedule_value))
 
-            # Algorithm Termination Conditions
-            if self.is_converged(current_best_schedule_value, new_best_schedule_value):
-                print("Convergence Met")
-                converged = True
+            # Termination by Duration
+            if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
                 break
-            elif i >= self.max_iterations:
+
+            # Termination by Max Iteration
+            if self._flag_termination_by_max_iteration and self._termination_by_max_iterations(i):
                 print("Max iterations met" + str(i) + " | " + str(self.max_iterations))
+                break
+
+            # Termination by Generational Delta
+            if self._flag_termination_by_generational_delta and \
+                    self._termination_by_generational_delta(current_best_schedule_value, new_best_schedule_value):
+                print("Generational Delta Threshold Met")
+                print("Convergence Met after " + str(i) + " iterations")
                 break
 
             # Prep Next iteration
@@ -1112,6 +1177,8 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         print("Generating Schedule with Simulated Annealing")
+        start_runtime = datetime.now()
+
         new_task_list = self._initialize_tasklist(tasklist, interval)
 
         current_state = random.sample(new_task_list, len(new_task_list))
@@ -1141,16 +1208,25 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
                         best_solution = current_state
                         best_solution_value = current_state_value
 
-                    if self.is_converged(old_best_value, best_solution_value):
-                        converged = True
+                    # Termination by Generational Delta
+                    if self._flag_termination_by_generational_delta and \
+                            self._termination_by_generational_delta(old_best_value, best_solution_value): # Checks delta
+                        print("Generational Delta Threshold Met")
+                        print("Convergence Met after " + str(i) + " iterations")
                         break
                 else:
                     pass
-            #
-            if i >= self.max_iterations:
+
+            # Termination by Max Iteration
+            if self._flag_termination_by_max_iteration and self._termination_by_max_iterations(i):
+                print("Max iterations met" + str(i) + " | " + str(self.max_iterations))
                 break
 
             i += 1
+
+            # Termination by Duration
+            if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
+                 break
 
         if self.elitism:
             return best_solution

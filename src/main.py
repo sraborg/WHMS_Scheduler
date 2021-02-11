@@ -17,6 +17,7 @@ def parent(args):
 def genetic_sch(args):
     sys = System()
     start_time = get_start_time(args)
+    sys._tasks = get_tasks(args)
 
     sys.set_scheduler("genetic")
     sys.scheduler = SchedulerFactory.genetic_scheduler(
@@ -28,13 +29,17 @@ def genetic_sch(args):
         max_iterations=args.max_iterations,
         threshold=args.threshold,
         generational_threshold=args.generational_threshold,
-        # start_time=None,
         verbose=args.verbose,
         invalid_schedule_value=args.invalid_schedule_value,
     )
 
-    # sys.scheduler.start_time = start
-    sys._tasks = get_tasks(args)
+    # Check for end_time
+    if args.end_time is not None:
+        if args.end_time <= args.start_time:
+            raise Exception("Endtime must be later than start time")
+        sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
+
+
     sys.schedule_tasks()
     gen_sch = sys._schedule
     total_gen_value = sys.simulate_schedule()  # start_time=start.timestamp())
@@ -48,6 +53,7 @@ def genetic_sch(args):
 
 def ant_sch(args):
     sys = System()
+    sys._tasks = get_tasks(args)
     start_time = get_start_time(args)
 
     sys.scheduler = SchedulerFactory.ant_scheduler(
@@ -60,8 +66,13 @@ def ant_sch(args):
         threshold=args.threshold,
         generational_threshold=5
     )
-    sys.scheduler.start_time = start_time
-    sys._tasks = get_tasks(args)
+
+    # Check for end_time
+    if args.end_time is not None:
+        if args.end_time <= args.start_time:
+            raise Exception("Endtime must be later than start time")
+        sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
+
     sys.schedule_tasks()
     ant_sch = sys._schedule
     total_ant_value = sys.simulate_schedule()  # start_time=start.timestamp())
@@ -87,7 +98,9 @@ def annealing_sch(args):
     )
 
     # Check for end_time
-    if args.end_time is not None and args.end_time > args.start_time:
+    if args.end_time is not None:
+        if args.end_time <= args.start_time:
+            raise Exception("Endtime must be later than start time")
         sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
 
     sys.schedule_tasks()
@@ -110,6 +123,13 @@ def random_sch(args):
         start_time=start_time,
         sample_size=args.sample_size
     )
+
+    # Check for end_time
+    if args.end_time is not None:
+        if args.end_time <= args.start_time:
+            raise Exception("Endtime must be later than start time")
+        sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
+
     sys.schedule_tasks()
     random_sch = sys._schedule
     total_random_value = sys.simulate_schedule()  # start_time=start.timestamp())
