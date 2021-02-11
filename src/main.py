@@ -91,6 +91,7 @@ def annealing_sch(args):
         sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
 
     sys.schedule_tasks()
+    sys.scheduler._tasks[0].nu.shift_deadlines(10)
     anneal_sch = sys._schedule
     total_anneal_value = sys.simulate_schedule()
     weighted_anneal_value = sys.scheduler.weighted_schedule_value(anneal_sch, total_anneal_value)
@@ -151,6 +152,7 @@ def get_end_time(args):
     else:
         return datetime.now() + timedelta(seconds=args.end_time)
 
+
 def after_parse(args, tasklist=None):
     if args.export_tasklist is not None:
         UserTask.save_tasks(args.export_tasklist, tasklist)
@@ -159,6 +161,7 @@ def after_parse(args, tasklist=None):
 # Main Parser
 parser = argparse.ArgumentParser()
 parser.add_argument('--verbose', action='store_true', help='foo help')
+parser.add_argument('-d', '--duration', type=int, help='How many minutes to run the algorithm', default=1)
 parser.add_argument('-e', '--export_tasklist', type=str, help='export tasklist')
 tasks = parser.add_mutually_exclusive_group(required=True)
 tasks.add_argument('-l', '--load_tasklist', type=str, help="")

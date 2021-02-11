@@ -196,11 +196,13 @@ class AbstractScheduler(ABC):
         return horizon
 
     def _initialize_tasklist(self, tasklist: List[AbstractTask], interval):
-        """ Calls appropriate delegated functions to add sleep/periodic tasks
+        """ Template Method that calls several delegated tasks
 
-        :param tasklist:
-        :param interval:
-        :return:
+        Calls appropriate delegated functions to add sleep/periodic tasks
+
+        :param tasklist: the list of tasks
+        :param interval: sleep time in seconds
+        :return: a (potentially) modified tasklist
         """
         self._tasks = new_tasklist = tasklist
 
@@ -216,6 +218,14 @@ class AbstractScheduler(ABC):
         return new_tasklist
 
     def generate_sleep_tasks(self, tasklist: List[AbstractTask], interval, **kwargs):
+        """
+
+        :param tasklist:
+        :param interval:
+        :param kwargs:
+        :return:
+        """
+
         """
         optimization_horizon = None
         calculated_horizon = AbstractScheduler.calculate_optimization_horizon(tasklist)
@@ -266,26 +276,14 @@ class AbstractScheduler(ABC):
                 # Generate New Periodic Tasks
                 for i in range(max_num_periodic_tasks):
 
-                    shift: float = task.earliest_start.timestamp() + (num_periodic_tasks * task.periodicity)
+                    # interval shift
+                    shift: float = (i+1) * task.periodicity
 
                     new_task: AbstractTask = copy.deepcopy(task)
                     new_task.periodicity = -1
 
-                    earliest_start = new_task.earliest_start + timedelta(seconds=shift)
-                    soft_deadline = new_task.soft_deadline + timedelta(seconds=shift)
-                    hard_deadline = new_task.hard_deadline + timedelta(seconds=shift)
-                    max_value = new_task.nu.max_value()
+                    new_task.nu.shift_deadlines(shift)
 
-                    new_task.earliest_start = earliest_start
-                    new_task.soft_deadline = soft_deadline
-                    new_task.hard_deadline = hard_deadline
-                    new_task.values = [
-                        (earliest_start.timestamp(), 0),
-                        (soft_deadline.timestamp(), random.randint(0, max_value)),
-                        (hard_deadline.timestamp(), 0)
-                    ]
-
-                    new_task.nu.fit_model(new_task.values)
                     new_periodic_tasks.append(new_task)
 
         return new_periodic_tasks
@@ -293,9 +291,12 @@ class AbstractScheduler(ABC):
 
     @staticmethod
     def _validate_schedule(tasklist: List[AbstractTask]) -> bool:
-        """Checks if Schedule is consistent with dependencies (e.g. no task is scheduled before any of its dependencies)
+        """ Checks if Schedule is consistent with dependencies (e.g. no task is scheduled before any of its dependencies)
 
+        :param tasklist:
+        :return:
         """
+
         # Check for Duplicates
         if not AbstractScheduler._no_duplicate_tasks(tasklist):
             return False
@@ -343,10 +344,20 @@ class AbstractScheduler(ABC):
                     return False
         return True
 
-    def load_tasklist(self, filename):
+    def load_tasklist(self, filename) -> List[AbstractTask]:
+        """Delegated Function
+
+        :param filename: the name of the file to load
+        :return: the loaded tasklist
+        """
         return AbstractTask.load_tasks(filename)
 
     def save_tasklist(self, filename, tasklist):
+        """
+
+        :param filename: the name of the file to save
+        :param tasklist: the tasklist to save
+        """
         AbstractTask.save_tasks(filename, tasklist)
 
     @staticmethod
@@ -378,12 +389,12 @@ class AbstractScheduler(ABC):
         pass
 
     def simulate_execution(self, tasklist: List[AbstractTask], start=None, **kwargs):
-        """
+        """Simulates executes of a schedule
 
         :param tasklist:
         :param start:
         :param kwargs:
-        :return:
+        :return: the schedule's value
         """
         if start is None:
             time = self.start_time.timestamp()
@@ -416,7 +427,7 @@ class AbstractScheduler(ABC):
     """
     @staticmethod
     def utopian_schedule_value(schedule):
-        """
+        """ Gets the Utopian (the best) value. Note this value may not be achievable.
 
         :param schedule:
         :return:
@@ -437,6 +448,8 @@ class AbstractScheduler(ABC):
         :param value:
         :return:
         """
+        if not schedule:
+            raise ValueError("Schedule cannot be empty")
 
         if value is None:
             value = self.simulate_execution(schedule, datetime.now().timestamp())

@@ -2,8 +2,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Optional, List, Tuple
-import pickle
-import csv
 import json
 import copy           # Used in task_builder to fix error with getTask
 from nu import NuFactory, NuRegression, NuConstant
@@ -109,9 +107,9 @@ class AbstractTask(ABC):
         self.ordered_by = kwargs.get("ordered_by", "")
         self.values = kwargs.get("values", [])
         self.nu = kwargs.get("nu", None)
-        self.earliest_start: datetime = kwargs.get("earliest_start", None)
-        self.soft_deadline: datetime = kwargs.get("soft_deadline", None)
-        self.hard_deadline: datetime = kwargs.get("hard_deadline", None)
+        #self._earliest_start: datetime = kwargs.get("earliest_start", None)
+        #self.soft_deadline: datetime = kwargs.get("soft_deadline", None)
+        #self.hard_deadline: datetime = kwargs.get("hard_deadline", None)
         self.periodicity: int = kwargs.get("periodicity", 0)
         self._cost = kwargs.get("cost", None)
         self._dependent_tasks: List[AbstractTask] = kwargs.get("dependent_tasks", [])
@@ -121,6 +119,18 @@ class AbstractTask(ABC):
         self._release_time: datetime = None
         self._completion_time: datetime = None
         self._execution_time: datetime = None
+
+    @property
+    def earliest_start(self):
+        return self.nu.earliest_start
+
+    @property
+    def soft_deadline(self):
+        return self.nu.soft_deadline
+
+    @property
+    def hard_deadline(self):
+        return self.nu.hard_deadline
 
     @property
     def cost(self):
@@ -258,16 +268,16 @@ class AbstractTask(ABC):
                 # Setup Analysis
                 task.analysis = AnalysisFactory.get_analysis(entry["analysis"])
 
-                task.earliest_start = datetime.fromtimestamp(float(entry["earliest_start"]))
-                task.soft_deadline = datetime.fromtimestamp(float(entry["soft_deadline"]))
-                task.hard_deadline = datetime.fromtimestamp(float(entry["hard_deadline"]))
+                #task.earliest_start = datetime.fromtimestamp(float(entry["earliest_start"]))
+                #task.soft_deadline = datetime.fromtimestamp(float(entry["soft_deadline"]))
+                #task.hard_deadline = datetime.fromtimestamp(float(entry["hard_deadline"]))
                 task.ordered_by = entry["ordered_by"]
-                task.values = entry["values"]
+                #task.values = entry["values"]
                 task.periodicity = entry["periodicity"]
 
                 # Setup Nu
                 nu = NuFactory.get_nu(entry["nu"])
-                nu.fit_model(task.values)
+                nu.fit_model(list(map(lambda x: tuple(x), entry["values"])))
                 task.nu = nu
 
                 # Handle Dependencies
@@ -449,10 +459,10 @@ class DummyTask(AbstractTask):
         return "DUMMY"
 """
 
+
 class SleepTask(SystemTask):
 
     def __init__(self, **kwargs):
-
         super().__init__()
         if "wcet" in kwargs:
             wcet = kwargs.get("wcet")
@@ -464,10 +474,33 @@ class SleepTask(SystemTask):
         else:
             self.analysis = DummyAnalysis(wcet=wcet)
 
-        # Set all points to now
-        self.earliest_start = datetime.now()
-        self.soft_deadline = self.earliest_start
-        self.hard_deadline = self.earliest_start
+        self.earliest_start: datetime = datetime.now()
+        self.soft_deadline: datetime = self._earliest_start
+        self.hard_deadline: datetime = self._earliest_start
+
+    @property
+    def earliest_start(self):
+        return self._earliest_start
+
+    @earliest_start.setter
+    def earliest_start(self, value: datetime):
+        self._earliest_start = value
+
+    @property
+    def soft_deadline(self):
+        return self._soft_deadline
+
+    @soft_deadline.setter
+    def soft_deadline(self, value: datetime):
+        self._soft_deadline = value
+
+    @property
+    def hard_deadline(self):
+        return self._hard_deadline
+
+    @hard_deadline.setter
+    def hard_deadline(self, value: datetime):
+        self._hard_deadline = value
 
     def execute(self):
         self.analysis.execute()

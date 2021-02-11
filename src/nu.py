@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
+from operator import itemgetter
 import numpy as np
 from typing import List, Tuple
 
@@ -10,21 +11,41 @@ class AbstractNu(ABC):
         """
 
         """
+        self._values: List[Tuple[float, float]] = None
         self._x: Tuple[datetime] = None              # Timestamps
         self._y: Tuple[float] = None              # Values
         self._model = None
         self._f = None
         self._min_regression_value = 0
         self._invalid_time_value = -0.1
+        self._earliest_start: datetime = None
+        self._soft_deadline: datetime = None
+        self._hard_deadline: datetime = None
+
+    @property
+    def earliest_start(self):
+        return self._earliest_start
+
+    @property
+    def soft_deadline(self):
+        return self._soft_deadline
+
+    @property
+    def hard_deadline(self):
+        return self._hard_deadline
 
     @abstractmethod
-    def fit_model(self, values: List[Tuple[datetime, int]]):
+    def fit_model(self, values: List[Tuple[datetime, float]]):
         """
 
         :param values:
         :return:
         """
+        self._values = values
         self._x, self._y = zip(*values)              # Time, Values
+        self._earliest_start = datetime.fromtimestamp(min(self._x))
+        self._soft_deadline = datetime.fromtimestamp(max(values, key=itemgetter(1))[0])
+        self._hard_deadline = datetime.fromtimestamp(max(self._y))
 
     def eval(self, x):
         """
@@ -45,6 +66,21 @@ class AbstractNu(ABC):
 
     def max_value(self):
         return max(self._y)
+
+    def shift_deadlines(self, shift_interval: float):
+        """ Shifts all the deadlines and their associated values
+
+        :param shift_interval: The number of seconds to shift the deadlines
+        """
+        # Configure new values
+        new_values = []
+        for deadline, value in self._values:
+            new_timestamp = deadline + shift_interval
+            new_values.append((new_timestamp, value))
+
+        # Refit model
+        self.fit_model(new_values)
+
 
 class NuRegression(AbstractNu):
 
