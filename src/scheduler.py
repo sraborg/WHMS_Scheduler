@@ -779,7 +779,8 @@ class AntScheduler(MetaHeuristicScheduler):
         converged = False
         self._generational_threshold_count = 0
 
-        global_solutions: List[Tuple[List[AbstractTask], int]] = [([], 0)]  # List of (Schedule, Value)
+        global_solutions: List[Tuple[List[AbstractTask], int]] = [] #[([], 0)]  # List of (Schedule, Value)
+        current_best_schedule_value = 0
 
         while not converged:
             if self.verbose:
@@ -826,7 +827,19 @@ class AntScheduler(MetaHeuristicScheduler):
                 if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
                     break
 
+            colony.sort(key=lambda ant: self._fitness(ant.get_schedule()), reverse=True)
+            local_solutions = list(map(lambda ant: ant.get_schedule(), sorted(colony, key=lambda ant: self._fitness(ant.get_schedule()), reverse=True)))
 
+            if self._flag_local_pheromone_update == self.ANT_COLONY:
+                pass
+
+            if self.verbose:
+                print("Iterative Best: " + str(self._fitness(local_solutions[0])) + " | Best so far: " + str(self._fitness(global_solutions[0])))
+
+            global_solutions = global_solutions + local_solutions
+            global_solutions.sort(key=lambda s: self._fitness(s), reverse=True)
+            global_solutions = global_solutions[:len(colony)]
+            new_best_schedule_value = self._fitness(global_solutions[0])
 
             # Termination by Duration
             if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
@@ -837,33 +850,16 @@ class AntScheduler(MetaHeuristicScheduler):
                 print("Max iterations met" + str(i) + " | " + str(self.max_iterations))
                 break
 
-            '''
             # Termination by Generational Delta
             if self._flag_termination_by_generational_delta and \
                     self._termination_by_generational_delta(current_best_schedule_value, new_best_schedule_value):
                 print("Generational Delta Threshold Met")
                 print("Convergence Met after " + str(i) + " iterations")
                 break
-            '''
-
-            # Update Best Solutions
-            new_solutions = []
-            for ant in colony:
-                sch = ant.get_schedule()
-                val = self.simulate_execution(sch)
-                new_solutions.append((sch, val))
-
-            current_best_schedule_value = global_solutions[0][1]
-            global_solutions = global_solutions + new_solutions
-            global_solutions.sort(key=lambda x: x[1], reverse=True)
-            global_solutions = global_solutions[:ceil(len(colony) / 2)]
-
-            new_best_schedule_value = global_solutions[0][1]
-            if self.verbose:
-                print("Best Path (" + str(len(global_solutions[0][0])) + "): " + str(new_best_schedule_value))
 
             # Prep Next iteration
             i += 1
+            current_best_schedule_value = global_solutions[0]
 
             # Update Pheromone Matrix
             if self.pheromone_update_method == self.ANT_SYSTEM:
@@ -875,15 +871,11 @@ class AntScheduler(MetaHeuristicScheduler):
             elif self.pheromone_update_method == self.ANT_COLONY:
                 pass
 
-            # Evaporation
-            #adt.evaporate_pheromones()
-
         print("Finished after " + str(i) + " swarms")
 
-        best_schedule = list(global_solutions[0][0])
-        sat_path = best_schedule = list(global_solutions[0][0]) #adt.get_saturated_path(root_node, self.start_time, self.end_time, interval)
+        best_solution = global_solutions[0][1:] # Remove initial root_node
 
-        return sat_path[1:] # Skip the root_node best_schedule
+        return best_solution # Skip the root_node of the best_schedule
 
     def _edge_selection(self, ant, choices, adt, iteration=1):
         """ Choices then next node to visit (and hence the edge to use).
@@ -1173,7 +1165,7 @@ class AntDependencyTree:
 
         for key, value in new_pheromones.items():
             current = self._pheromomnes.get(key, 0)
-            self._pheromomnes[key] = (1-self._evaporation_rate) + value
+            self._pheromomnes[key] = (1-self._evaporation_rate) * current + self._evaporation_rate * value
 
             # Limits pheromone values between [min, max]
             if self._flag_max_min_ant_system:
