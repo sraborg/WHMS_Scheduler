@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from operator import itemgetter
 import numpy as np
 from task import AbstractTask, SleepTask, AntTask, UserTask
 from datetime import datetime, timedelta
@@ -731,6 +732,9 @@ class GeneticScheduler(MetaHeuristicScheduler):
 
 class AntScheduler(MetaHeuristicScheduler):
 
+    ANT_SYSTEM = 0
+    ANT_COLONY = 1
+
     def __init__(self, **kwargs):
         """
 
@@ -741,28 +745,33 @@ class AntScheduler(MetaHeuristicScheduler):
         self.alpha = kwargs.get("alpha", 1)
         self.beta = kwargs.get("beta", 1)
         self.epsilon = kwargs.get("epsilon", 0.5)
+        self.pheromone_update_method = self.ANT_SYSTEM
         self._flag_generate_sleep_tasks = False
+        self._flag_aco_pheromone_update = True
+        self._flag_local_pheromone_update = False
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
-        """
+        """ Generates a schedule using a modified ant colony optimization algorithm
 
-        :param tasklist:
-        :param interval:
-        :return:
+        :param tasklist: the list of tasks to be scheduled
+        :param interval: the period of time to divide the optimization horizon
+        :return: an ordered list of tasks
         """
         print("Generating Schedule Using Ant Colony Algorithm")
         start_runtime = datetime.now()
         new_task_list = self._initialize_tasklist(tasklist, interval)
 
-        adt = AntDependencyTree(new_task_list)
+        adt = AntDependencyTree(new_task_list, min_max=True)
+
+        root_node = AntTask(SleepTask(runtime=0, analysis_type="SLEEPANALYSIS", wcet=0))
 
         # Get Valid starting nodes
-        possible_starting_task = adt.ant_task_choices(Ant(), interval)
+        #possible_starting_task = adt.ant_task_choices(Ant(), interval)
         i = 1
         converged = False
         self._generational_threshold_count = 0
 
-        possible_solutions: List[Tuple[List[AbstractTask], int]] = [([], 0)]  # List of (Schedule, Value)
+        global_solutions: List[Tuple[List[AbstractTask], int]] = [([], 0)]  # List of (Schedule, Value)
 
         while not converged:
             if self.verbose:
@@ -777,7 +786,7 @@ class AntScheduler(MetaHeuristicScheduler):
             for ant in colony:
 
                 # Place ants on random "Starting Node" (e.g. the "top" of the graph).
-                ant_task = random.choice(possible_starting_task)
+                ant_task = root_node #random.choice(possible_starting_task)
                 time = self.start_time.timestamp()
 
                 adt.visit_node(ant, ant_task, time)
@@ -798,9 +807,10 @@ class AntScheduler(MetaHeuristicScheduler):
                         break
 
                     # Make move
-                    next_ant_task = self._edge_selection(ant, valid_choices, adt, interval+1)
                     time += ant_task.wcet
-                    adt.visit_node(ant, next_ant_task, time)
+                    ant_task = self._edge_selection(ant, valid_choices, adt, interval+1)
+
+                    adt.visit_node(ant, ant_task, time)
 
                     step += 1
 
@@ -808,21 +818,7 @@ class AntScheduler(MetaHeuristicScheduler):
                 if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
                     break
 
-            # Update Best Solutions
-            new_solutions = []
-            for ant in colony:
-                sch = ant.get_schedule()
-                val = self.simulate_execution(sch)
-                new_solutions.append((sch, val))
 
-            current_best_schedule_value = possible_solutions[0][1]
-            possible_solutions = possible_solutions + new_solutions
-            possible_solutions.sort(key=lambda x: x[1], reverse=True)
-            possible_solutions = possible_solutions[:ceil(len(colony)/2)]
-
-            new_best_schedule_value = possible_solutions[0][1]
-            if self.verbose:
-                print("Best Path ("+str(len(possible_solutions[0][0])) + "): " + str(new_best_schedule_value))
 
             # Termination by Duration
             if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
@@ -833,27 +829,53 @@ class AntScheduler(MetaHeuristicScheduler):
                 print("Max iterations met" + str(i) + " | " + str(self.max_iterations))
                 break
 
+            '''
             # Termination by Generational Delta
             if self._flag_termination_by_generational_delta and \
                     self._termination_by_generational_delta(current_best_schedule_value, new_best_schedule_value):
                 print("Generational Delta Threshold Met")
                 print("Convergence Met after " + str(i) + " iterations")
                 break
+            '''
+
+            # Update Best Solutions
+            new_solutions = []
+            for ant in colony:
+                sch = ant.get_schedule()
+                val = self.simulate_execution(sch)
+                new_solutions.append((sch, val))
+
+            current_best_schedule_value = global_solutions[0][1]
+            global_solutions = global_solutions + new_solutions
+            global_solutions.sort(key=lambda x: x[1], reverse=True)
+            global_solutions = global_solutions[:ceil(len(colony) / 2)]
+
+            new_best_schedule_value = global_solutions[0][1]
+            if self.verbose:
+                print("Best Path (" + str(len(global_solutions[0][0])) + "): " + str(new_best_schedule_value))
 
             # Prep Next iteration
             i += 1
 
             # Update Pheromone Matrix
-            for ant in colony:
-                adt.update_pheromones(ant, self._fitness)
+            if self.pheromone_update_method == self.ANT_SYSTEM:
+                adt.update_pheromones(colony, self._fitness)
+                """
+                for ant in colony:
+                    adt.update_pheromones(ant, self._fitness)
+                """
+            elif self.pheromone_update_method == self.ANT_COLONY:
+                pass
 
             # Evaporation
-            adt.evaporate_pheromones()
+            #adt.evaporate_pheromones()
 
         print("Finished after " + str(i) + " swarms")
 
-        best_schedule = list(possible_solutions[0][0])
-        return best_schedule
+        best_schedule = list(global_solutions[0][0])
+        sat_path = best_schedule = list(global_solutions[0][0]) #adt.get_saturated_path(root_node, self.start_time, self.end_time, interval)
+
+        return sat_path[1:] # Skip the root_node best_schedule
 
     def _edge_selection(self, ant, choices, adt, iteration=1):
         """ Choices then next node to visit (and hence the edge to use).
@@ -868,22 +890,30 @@ class AntScheduler(MetaHeuristicScheduler):
         else:
             probabilities = []
             last = ant.last_visited_node()
-            alpha = self.alpha
+            alpha = self.alpha + iteration/10
             beta = self.beta / iteration
             for choice in choices:
                 e = (last, choice)
 
                 # Get Pheromone Value
                 p_value = adt.get_pheromone_value(e)
+
+                '''
                 if p_value < 1:
+                    p_value = 1
+                    """
                     p_value = -1*p_value
                     p_value = -1*(p_value**alpha)
+                    """
                 else:
                     p_value = p_value ** alpha
+                '''
 
+                p_value = p_value ** alpha
                 # Get Heuristic Value
                 h_value = self._attractiveness(choice, last[1])
 
+                # Higher probability of negative values (bad solution)
                 if h_value < 0:    # Stop creation of Complex Numbers
                     h_value = -1 * h_value
                     h_value = -1 * (h_value ** beta)
@@ -908,6 +938,7 @@ class AntScheduler(MetaHeuristicScheduler):
             node_choice = random.choices(choices, weights=probabilities)
             return node_choice[0]
 
+
     def _attractiveness(self, Node, time):
         """ Heuristic function that takes into consideration:
         (1) the amount of value lost if the task is taken early
@@ -921,13 +952,13 @@ class AntScheduler(MetaHeuristicScheduler):
 
         value_now = Node.value(timestamp=time)
         utopia_point = Node.soft_deadline.timestamp()
+       #hard_deadline = Node.hard_deadline.timestamp()
 
-        if time > utopia_point:
-            return value_now
-        else:
-
+        if time < utopia_point:
             utopia_value = Node.value(timestamp=utopia_point)
-            return value_now - utopia_value
+            return value_now - (utopia_value - value_now)
+        else:
+            return value_now
 
     def _fitness(self, schedule):
         """ Provides a value for the given schedule. For invalid schedules, the "invalid schedule value" is returned.
@@ -1015,15 +1046,20 @@ class Ant:
 
 class AntDependencyTree:
 
-    def __init__(self, tasklist: List[AbstractTask]):
+    def __init__(self, tasklist: List[AbstractTask], **kwargs):
         """
 
         :param tasklist:
         """
         self._ant_tasks = []
-        self._pheromones: Dict[List[float]] = {}
+        # self._pheromones: Dict[List[float]] = {}
+        self._pheromomnes: Dict[float] = {}
         self._edge_visits: Dict[Tuple[int,int]] = {}
-        self.min_pheromone_amount = 0.001
+        self.initial_pheromone_amount = 2
+        self.min_pheromone_amount = kwargs.get("min_pheromone_value", 1)
+        self.max_pheromone_amount = kwargs.get("max_pheromone_value", 100)
+        self._evaporation_rate = kwargs.get("evaporation_rate", 0.2)
+        self._flag_max_min_ant_system = kwargs.get("min_max", False)
 
         for task in tasklist:
             self._ant_tasks.append(AntTask(task))
@@ -1105,21 +1141,41 @@ class AntDependencyTree:
 
         #self._pheromones[edge] = self._pheromones.get(edge, 0) + 10000
 
-    def update_pheromones(self, ant, fitness):
+    def update_pheromones(self, ants: List[Ant], fitness):
         """
 
         :param ant: the Ant
         :param fitness: A Fitness Function
         :return:
         """
-        schedule = list(ant.get_schedule())
+        new_pheromones: Dict[float] = {}
 
-        value = fitness(schedule)
+        # Calculate new pheromones to add
+        for ant in ants:
+            schedule = list(ant.get_schedule())
 
-        path = list(ant.get_visited_nodes())
-        for i, node in enumerate(path[:-1]):
-            key = (path[i], path[i+1])
+            value = fitness(schedule)
 
+            path = list(ant.get_visited_nodes())
+            for i, node in enumerate(path[:-1]):
+                key = (path[i], path[i+1])
+
+                current = new_pheromones.get(key, self.initial_pheromone_amount)
+                new_pheromones[key] = current + value
+
+        for key, value in new_pheromones.items():
+            current = self._pheromomnes.get(key, 0)
+            self._pheromomnes[key] = (1-self._evaporation_rate) + value
+
+            # Limits pheromone values between [min, max]
+            if self._flag_max_min_ant_system:
+                if self._pheromomnes[key] < self.min_pheromone_amount:
+                    self._pheromomnes[key] = self.min_pheromone_amount
+                if self._pheromomnes[key] > self.max_pheromone_amount:
+                    self.min_pheromone_amount = self.max_pheromone_amount
+
+        """
+            # Empty Case
             if key not in self._pheromones:
                 self._pheromones[key] = []
 
@@ -1128,6 +1184,7 @@ class AntDependencyTree:
 
             self._pheromones[key].append(value)
             self._edge_visits[key] = self._edge_visits[key] + 1
+        """
 
     def get_pheromone_value(self, key):
         """
@@ -1135,11 +1192,69 @@ class AntDependencyTree:
         :param key:
         :return:
         """
-        if key not in self._pheromones:
-            return self.min_pheromone_amount
-        else:
-            return sum(self._pheromones[key]) / self._edge_visits[key]
 
+        """
+                if key not in self._pheromones:
+                    return self.min_pheromone_amount
+                else:
+                    return sum(self._pheromones[key]) / self._edge_visits[key]
+                """
+
+        return self._pheromomnes.get(key, self.initial_pheromone_amount)
+
+    def get_saturated_path(self, root_task, start_time, end_time, interval):
+        """
+
+        :return:
+        """
+        path = []
+        greedy_ant = Ant()
+        ant_task = root_task
+        time = start_time.timestamp()
+        self.visit_node(greedy_ant, ant_task, time)
+        while not greedy_ant._search_complete:
+
+            # Determine which nodes the ant can visit
+            valid_choices = self.ant_task_choices(greedy_ant, interval)
+
+            # Check for Path Termination (e.g. empty list or exceeded horizon)
+            if not valid_choices:
+                greedy_ant._search_complete = True
+                break
+
+            # Check if the ant has taken too much time
+            elif greedy_ant.simulated_time >= end_time.timestamp():
+                break
+
+            # Make Greedy move
+            next_ant_task = self._greedy_edge_selection(greedy_ant, valid_choices, self, interval + 1)
+            time += ant_task.wcet
+            self.visit_node(greedy_ant, next_ant_task, time)
+
+        return greedy_ant.get_schedule()
+
+    def _greedy_edge_selection(self, ant, choices, adt, iteration=1):
+        """ Choices then next node to visit (and hence the edge to use).
+
+        :param ant:
+        :param choices: List of valid choices
+        :return:
+        """
+
+        last = ant.last_visited_node()
+        time = last[1] + last[0].wcet
+        edges = []
+        for choice in choices:
+            e = (last, (choice, time))
+
+            # Get Pheromone Value
+            p_value = adt.get_pheromone_value(e)
+
+            edges.append((e, p_value))
+
+        return max(edges, key=itemgetter(1))[0][1][0]
+
+    '''
     def evaporate_pheromones(self, evaporation_rate=0.8):
         """
 
@@ -1148,7 +1263,7 @@ class AntDependencyTree:
         """
         for k,v in self._pheromones.items():
             self._pheromones[k] = list(map(lambda x: x * evaporation_rate, v))
-
+    '''
 
 class HeuristicScheduler(AbstractScheduler):
 
