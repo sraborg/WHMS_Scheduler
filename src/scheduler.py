@@ -741,7 +741,10 @@ class GeneticScheduler(MetaHeuristicScheduler):
 class AntScheduler(MetaHeuristicScheduler):
 
     ANT_SYSTEM = 0
-    ANT_COLONY = 1
+    ANT_COLONY = 2
+    RANKED_BASED_ANT_SYSTEM = 3
+    ITERATIVE_BEST = 0
+    BEST_SO_FAR = 1
 
     def __init__(self, **kwargs):
         """
@@ -753,10 +756,15 @@ class AntScheduler(MetaHeuristicScheduler):
         self.alpha = kwargs.get("alpha", 1)
         self.beta = kwargs.get("beta", 1)
         self.epsilon = kwargs.get("epsilon", 0.5)
-        self.pheromone_update_method = self.ANT_SYSTEM
+        self.pheromone_update_method = self.RANKED_BASED_ANT_SYSTEM
+        self.best_method = self.BEST_SO_FAR
+        self.rank = kwargs.get("rank", 5)
         self._flag_generate_sleep_tasks = False
         self._flag_aco_pheromone_update = True
         self._flag_local_pheromone_update = False
+
+        if self.rank > self.colony_size:
+            self.rank = ceil(self.colony_size/2)
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         """ Generates a schedule using a modified ant colony optimization algorithm
@@ -779,7 +787,7 @@ class AntScheduler(MetaHeuristicScheduler):
         converged = False
         self._generational_threshold_count = 0
 
-        global_solutions: List[Tuple[List[AbstractTask], int]] = [] #[([], 0)]  # List of (Schedule, Value)
+        global_solutions: List[Ant] = [] #[([], 0)]  # List of (Schedule, Value)
         current_best_schedule_value = 0
 
         while not converged:
@@ -794,8 +802,8 @@ class AntScheduler(MetaHeuristicScheduler):
             # Send each Ant to explore
             for ant in colony:
 
-                # Place ants on random "Starting Node" (e.g. the "top" of the graph).
-                ant_task = root_node #random.choice(possible_starting_task)
+                # Place ants on common "root node"
+                ant_task = root_node
                 time = self.start_time.timestamp()
 
                 adt.visit_node(ant, ant_task, time)
@@ -828,18 +836,19 @@ class AntScheduler(MetaHeuristicScheduler):
                     break
 
             colony.sort(key=lambda ant: self._fitness(ant.get_schedule()), reverse=True)
-            local_solutions = list(map(lambda ant: ant.get_schedule(), sorted(colony, key=lambda ant: self._fitness(ant.get_schedule()), reverse=True)))
+            #local_solutions = list(map(lambda ant: ant.get_schedule(), sorted(colony, key=lambda ant: self._fitness(ant.get_schedule()), reverse=True)))
 
             if self._flag_local_pheromone_update == self.ANT_COLONY:
                 pass
 
-            if self.verbose:
-                print("Iterative Best: " + str(self._fitness(local_solutions[0])) + " | Best so far: " + str(self._fitness(global_solutions[0])))
-
-            global_solutions = global_solutions + local_solutions
-            global_solutions.sort(key=lambda s: self._fitness(s), reverse=True)
+            global_solutions = global_solutions + colony
+            global_solutions.sort(key=lambda ant: self._fitness(ant.get_schedule()), reverse=True)
             global_solutions = global_solutions[:len(colony)]
-            new_best_schedule_value = self._fitness(global_solutions[0])
+            new_best_schedule_value = self._fitness(global_solutions[0].get_schedule())
+
+            if self.verbose:
+                print("Iterative Best: " + str(self._fitness(colony[0].get_schedule())) + " | Best so far: " +
+                      str(self._fitness(global_solutions[0].get_schedule())))
 
             # Termination by Duration
             if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
@@ -864,16 +873,21 @@ class AntScheduler(MetaHeuristicScheduler):
             # Update Pheromone Matrix
             if self.pheromone_update_method == self.ANT_SYSTEM:
                 adt.update_pheromones(colony, self._fitness)
-                """
-                for ant in colony:
-                    adt.update_pheromones(ant, self._fitness)
-                """
-            elif self.pheromone_update_method == self.ANT_COLONY:
-                pass
+            elif self.pheromone_update_method <= self.ANT_COLONY:
+
+                update_size = 1
+                if self.pheromone_update_method == self.RANKED_BASED_ANT_SYSTEM:
+                    update_size = self.RANKED_BASED_ANT_SYSTEM
+
+                    if self.best_method == self.BEST_SO_FAR:
+                        adt.update_pheromones(global_solutions[0:update_size], self._fitness())
+                    elif self.best_method == self.ITERATIVE_BEST:
+                        adt.update_pheromones(colony[0:update_size], self._fitness())
+
 
         print("Finished after " + str(i) + " swarms")
 
-        best_solution = global_solutions[0][1:] # Remove initial root_node
+        best_solution = global_solutions[0].get_schedule()[1:] # Remove initial root_node
 
         return best_solution # Skip the root_node of the best_schedule
 
