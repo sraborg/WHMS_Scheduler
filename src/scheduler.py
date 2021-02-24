@@ -149,6 +149,7 @@ class AbstractScheduler(ABC):
         self._tasks = None
         self._optimization_horizon = None
         self.start_time: datetime = kwargs.get("start_time", datetime.now())
+        self._cached_schedule_values: Dict[float] = {}
         self.end_time: datetime = kwargs.get("end_time", None)
         self.verbose = kwargs.get("verbose", False)
         self.invalid_schedule_value = kwargs.get("invalid_schedule_value", -1000.0)
@@ -404,17 +405,24 @@ class AbstractScheduler(ABC):
         else:
             time = start
 
-        total_value = 0
+        key = (tuple(tasklist), start)
+        if key in self._cached_schedule_values.keys():
+            return self._cached_schedule_values[key]
+        else:
 
-        for task in tasklist:
+            total_value = 0
 
-            # Ignore Sleep Tasks Values
-            if not task.is_sleep_task():
-                total_value += task.value(timestamp=time)
+            for task in tasklist:
 
-            time += task.wcet
+                # Ignore Sleep Tasks Values
+                if not task.is_sleep_task():
+                    total_value += task.value(timestamp=time)
 
-        return total_value
+                time += task.wcet
+
+            self._cached_schedule_values[key] = total_value
+
+        return self._cached_schedule_values[key]
 
     """
     @staticmethod
