@@ -133,6 +133,10 @@ class AbstractTask(ABC):
         return self.nu.hard_deadline
 
     @property
+    def utopian_value(self):
+        return self.nu.utopian_value()
+
+    @property
     def cost(self):
         return self._cost
 
@@ -568,6 +572,10 @@ class TaskDecorator(ABC):
     @hard_deadline.setter
     def hard_deadline(self, deadline):
         self._task.hard_deadline = deadline
+
+    @property
+    def utopian_value(self):
+        return self._task.utopian_value()
 
     @property
     def ordered_by(self):

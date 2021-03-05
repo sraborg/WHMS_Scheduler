@@ -64,7 +64,7 @@ class AbstractNu(ABC):
     def name(self) -> str:
         pass
 
-    def max_value(self):
+    def utopian_value(self):
         return max(self._y)
 
     def shift_deadlines(self, shift_interval: float):

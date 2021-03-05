@@ -81,6 +81,64 @@ class SchedulerFactory:
             **kwargs)
 
     @classmethod
+    def ant_colony_scheduler(cls,
+                      colony_size=25,
+                      alpha=1,
+                      beta=1,
+                      epsilon=0.5,
+                      max_iterations=100,
+                      threshold=0.01,
+                      generational_threshold=10,
+                      start_time=None,
+                      verbose=False,
+                      invalid_schedule_value=-1000.0,
+                      **kwargs):
+
+        if start_time is None:
+            start_time = datetime.now()
+        return AntColonyScheduler(
+            colony_size=colony_size,
+            alpha=alpha,
+            beta=beta,
+            epsilon=epsilon,
+            max_iterations=max_iterations,
+            threshold=threshold,
+            generational_threshold=generational_threshold,
+            start_time=start_time,
+            verbose=verbose,
+            invalid_schedule_value=invalid_schedule_value,
+            **kwargs)
+
+    @classmethod
+    def ElitistAntScheduler(cls,
+                             colony_size=25,
+                             alpha=1,
+                             beta=1,
+                             epsilon=0.5,
+                             max_iterations=100,
+                             threshold=0.01,
+                             generational_threshold=10,
+                             start_time=None,
+                             verbose=False,
+                             invalid_schedule_value=-1000.0,
+                             **kwargs):
+
+        if start_time is None:
+            start_time = datetime.now()
+        return ElitistAntScheduler(
+            colony_size=colony_size,
+            alpha=alpha,
+            beta=beta,
+            epsilon=epsilon,
+            max_iterations=max_iterations,
+            threshold=threshold,
+            generational_threshold=generational_threshold,
+            start_time=start_time,
+            verbose=verbose,
+            invalid_schedule_value=invalid_schedule_value,
+            **kwargs)
+
+    @classmethod
     def genetic_scheduler(cls,
                           population_size=5000,
                           breeding_percentage=0.05,
@@ -424,18 +482,6 @@ class AbstractScheduler(ABC):
 
         return self._cached_schedule_values[key]
 
-    """
-    @staticmethod
-    def simulate_step(task, time):
-        value = 0
-
-        if not task.is_sleep_task():
-            value += task.value(timestamp=time)
-
-        time += task.wcet
-
-        return value, time
-    """
     @staticmethod
     def utopian_schedule_value(schedule):
         """ Gets the Utopian (the best) value. Note this value may not be achievable.
@@ -741,6 +787,7 @@ class GeneticScheduler(MetaHeuristicScheduler):
 class AntScheduler(MetaHeuristicScheduler):
 
     ANT_SYSTEM = 0
+    ELITIST_ANT_SYSTEM = 1
     ANT_COLONY = 2
     RANKED_BASED_ANT_SYSTEM = 3
     ITERATIVE_BEST = 0
@@ -757,7 +804,7 @@ class AntScheduler(MetaHeuristicScheduler):
         self.beta = kwargs.get("beta", 1)
         self.epsilon = kwargs.get("epsilon", 0.5)
         self.pheromone_update_method = self.RANKED_BASED_ANT_SYSTEM
-        self.best_method = self.BEST_SO_FAR
+        self.best_method = kwargs.get("best_method", self.BEST_SO_FAR)
         self.rank = kwargs.get("rank", 5)
         self._flag_generate_sleep_tasks = False
         self._flag_aco_pheromone_update = True
@@ -773,7 +820,7 @@ class AntScheduler(MetaHeuristicScheduler):
         :param interval: the period of time to divide the optimization horizon
         :return: an ordered list of tasks
         """
-        print("Generating Schedule Using Ant Colony Algorithm")
+        print("Generating Schedule Using " + self._algorithm_name() + " Algorithm")
         start_runtime = datetime.now()
         new_task_list = self._initialize_tasklist(tasklist, interval)
 
@@ -818,9 +865,15 @@ class AntScheduler(MetaHeuristicScheduler):
                     # Check for Path Termination (e.g. empty list or exceeded horizon)
                     if not valid_choices:
                         ant._search_complete = True
+                        if self._local_pheromone_update():
+                            adt.update_pheromones([ant], self._fitness)
+
                         break
+
                     # Check if the ant has taken too much time
                     elif ant.simulated_time >= self.end_time.timestamp():
+                        if self._local_pheromone_update():
+                            adt.update_pheromones([ant], self._fitness)
                         break
 
                     # Make move
@@ -836,7 +889,6 @@ class AntScheduler(MetaHeuristicScheduler):
                     break
 
             colony.sort(key=lambda ant: self._fitness(ant.get_schedule()), reverse=True)
-            #local_solutions = list(map(lambda ant: ant.get_schedule(), sorted(colony, key=lambda ant: self._fitness(ant.get_schedule()), reverse=True)))
 
             if self._flag_local_pheromone_update == self.ANT_COLONY:
                 pass
@@ -871,18 +923,33 @@ class AntScheduler(MetaHeuristicScheduler):
             current_best_schedule_value = global_solutions[0]
 
             # Update Pheromone Matrix
-            if self.pheromone_update_method == self.ANT_SYSTEM:
+
+            # Update using Full Colony
+            if self._full_colony_update():
                 adt.update_pheromones(colony, self._fitness)
-            elif self.pheromone_update_method <= self.ANT_COLONY:
 
+            elif self._elitism():
+                solutions = colony + [global_solutions[0]]
+                adt.update_pheromones(solutions, self._fitness)
+
+            if self._best_only_update():
                 update_size = 1
-                if self.pheromone_update_method == self.RANKED_BASED_ANT_SYSTEM:
-                    update_size = self.RANKED_BASED_ANT_SYSTEM
 
-                    if self.best_method == self.BEST_SO_FAR:
-                        adt.update_pheromones(global_solutions[0:update_size], self._fitness())
-                    elif self.best_method == self.ITERATIVE_BEST:
+                # Update Using Iterative-Best
+                if self._iterative_best_update():
+                    if self._ranked():
+                        update_size = 1
                         adt.update_pheromones(colony[0:update_size], self._fitness())
+                    else:
+                        adt.update_pheromones([colony[0]], self._fitness())
+
+                # Update using Best-So-Far
+                if self._global_best_update():
+                    if self._ranked():
+                        update_size = 1
+                        adt.update_pheromones(global_solutions[0:update_size], self._fitness())
+                    adt.update_pheromones([global_solutions[0]], self._fitness())
+
 
 
         print("Finished after " + str(i) + " swarms")
@@ -911,19 +978,8 @@ class AntScheduler(MetaHeuristicScheduler):
 
                 # Get Pheromone Value
                 p_value = adt.get_pheromone_value(e)
-
-                '''
-                if p_value < 1:
-                    p_value = 1
-                    """
-                    p_value = -1*p_value
-                    p_value = -1*(p_value**alpha)
-                    """
-                else:
-                    p_value = p_value ** alpha
-                '''
-
                 p_value = p_value ** alpha
+
                 # Get Heuristic Value
                 h_value = self._attractiveness(choice, last[1])
 
@@ -935,7 +991,6 @@ class AntScheduler(MetaHeuristicScheduler):
                     h_value = h_value ** beta
 
                 value = p_value * h_value
-
 
                 probabilities.append(value)
 
@@ -953,7 +1008,7 @@ class AntScheduler(MetaHeuristicScheduler):
             return node_choice[0]
 
 
-    def _attractiveness(self, Node, time):
+    def _attractiveness(self, Node: AntTask, time: float):
         """ Heuristic function that takes into consideration:
         (1) the amount of value lost if the task is taken early
 
@@ -974,6 +1029,9 @@ class AntScheduler(MetaHeuristicScheduler):
         else:
             return value_now
 
+    def _early_penalty(self, node: AntTask, current_value: float):
+        return node.soft_deadline.timestamp() - current_value
+
     def _fitness(self, schedule):
         """ Provides a value for the given schedule. For invalid schedules, the "invalid schedule value" is returned.
         Otherwise, the simulated value is returned.
@@ -985,6 +1043,61 @@ class AntScheduler(MetaHeuristicScheduler):
             return self.invalid_schedule_value
         else:
             return self.simulate_execution(schedule)
+
+    def _algorithm_name(self):
+        return "Ant System"
+
+    # TEMPLATE METHODS #
+
+    def _full_colony_update(self):
+        return True
+    def _local_pheromone_update(self):
+        return False
+
+    def _iterative_best_update(self):
+        return False
+
+    def _global_best_update(self):
+        return False
+
+    def _elitism(self):
+        return False
+
+    def _best_only_update(self):
+        return False
+
+    def _ranked(self):
+        return False
+
+    def _min_max_bounds(self):
+        return False
+
+
+class ElitistAntScheduler(AntScheduler):
+
+    def _full_colony_update(self):
+        return False
+
+    def _elitism(self):
+        return True
+
+    def _algorithm_name(self):
+        return "Elitist Ant"
+
+
+class AntColonyScheduler(AntScheduler):
+
+    def _local_pheromone_update(self):
+        return True
+
+    def _full_colony_update(self):
+        return False
+
+    def _best_only_update(self):
+        return True
+
+    def _algorithm_name(self):
+        return "Ant Colony Optimization (ACO)"
 
 
 class Ant:
@@ -1278,11 +1391,6 @@ class AntDependencyTree:
         for k,v in self._pheromones.items():
             self._pheromones[k] = list(map(lambda x: x * evaporation_rate, v))
     '''
-
-class HeuristicScheduler(AbstractScheduler):
-
-    def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
-        pass
 
 
 class SimulateAnnealingScheduler(MetaHeuristicScheduler):

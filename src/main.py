@@ -56,17 +56,41 @@ def ant_sch(args):
     sys._tasks = get_tasks(args)
     start_time = get_start_time(args)
 
-    sys.scheduler = SchedulerFactory.ant_scheduler(
-        start_time=start_time,
-        colony_size=args.colony_size,
-        alpha=args.alpha,
-        beta=args.beta,
-        epsilon=args.epsilon,
-        max_iterations=args.max_iterations,
-        threshold=args.threshold,
-        generational_threshold=5
-    )
+    method: str = args.method
+    if method.upper() == "AS":
+        sys.scheduler = SchedulerFactory.ant_scheduler(
+            start_time=start_time,
+            colony_size=args.colony_size,
+            alpha=args.alpha,
+            beta=args.beta,
+            epsilon=args.epsilon,
+            max_iterations=args.max_iterations,
+            threshold=args.threshold,
+            generational_threshold=5
+        )
+    if method.upper() == "ACO":
+        sys.scheduler = SchedulerFactory.ant_colony_scheduler(
+            start_time=start_time,
+            colony_size=args.colony_size,
+            alpha=args.alpha,
+            beta=args.beta,
+            epsilon=args.epsilon,
+            max_iterations=args.max_iterations,
+            threshold=args.threshold,
+            generational_threshold=5
+        )
 
+    if method.upper() == "ELITE":
+        sys.scheduler = SchedulerFactory.ElitistAntScheduler(
+            start_time=start_time,
+            colony_size=args.colony_size,
+            alpha=args.alpha,
+            beta=args.beta,
+            epsilon=args.epsilon,
+            max_iterations=args.max_iterations,
+            threshold=args.threshold,
+            generational_threshold=5
+        )
     # Check for end_time
     if args.end_time is not None:
         if args.end_time <= args.start_time:
@@ -78,8 +102,8 @@ def ant_sch(args):
     total_ant_value = sys.simulate_schedule()  # start_time=start.timestamp())
     weighted_ant_value = sys.scheduler.weighted_schedule_value(ant_sch, total_ant_value)
 
-    print("Ant Scheduler Value: " + str(total_ant_value))
-    print("Ant Weighted Scheduler Value: " + str(weighted_ant_value))
+    print(sys.scheduler._algorithm_name() + " Algorithm Scheduler Value: " + str(total_ant_value))
+    print(sys.scheduler._algorithm_name() + " Algorithm Scheduler Weighted Value: " + str(weighted_ant_value))
 
     after_parse(args, sys._tasks)
 
@@ -206,7 +230,9 @@ parser_genetic.set_defaults(func=genetic_sch)
 
 
 # create the parser for the "ant" command
+ant_arg_choices = ["as", "aco", "elite"]
 parser_ant = subparsers.add_parser('ant', help='ant help')
+parser_ant.add_argument("-m", "--method", type=str, choices=ant_arg_choices)
 parser_ant.add_argument('--colony_size', type=int, help='bar help', default=30)
 parser_ant.add_argument('--alpha', type=int, help='bar help', default=1)
 parser_ant.add_argument('--beta', type=int, help='bar help', default=-1)
