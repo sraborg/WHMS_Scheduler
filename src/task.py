@@ -107,9 +107,6 @@ class AbstractTask(ABC):
         self.ordered_by = kwargs.get("ordered_by", "")
         self.values = kwargs.get("values", [])
         self.nu = kwargs.get("nu", None)
-        #self._earliest_start: datetime = kwargs.get("earliest_start", None)
-        #self.soft_deadline: datetime = kwargs.get("soft_deadline", None)
-        #self.hard_deadline: datetime = kwargs.get("hard_deadline", None)
         self.periodicity: int = kwargs.get("periodicity", 0)
         self._cost = kwargs.get("cost", None)
         self._dependent_tasks: List[AbstractTask] = kwargs.get("dependent_tasks", [])
@@ -468,10 +465,9 @@ class SleepTask(SystemTask):
 
     def __init__(self, **kwargs):
         super().__init__()
-        if "wcet" in kwargs:
-            wcet = kwargs.get("wcet")
-        else:
-            wcet = 5
+        self._value = kwargs.get("SLEEP_VALUE", 1)
+
+        wcet = kwargs.get("wcet", 5)
 
         if "analysis_type" in kwargs and str.upper(kwargs.get("analysis_type")) == "SLEEPANALYSIS":
             self.analysis = SleepAnalysis(wcet=wcet)
@@ -511,7 +507,12 @@ class SleepTask(SystemTask):
         #sleep(self.runtime)
 
     def value(self, **kwargs):
-        return 0
+        """
+
+        :param kwargs:
+        :return:
+        """
+        return self._value
 
     def name(self):
         return "SLEEP"

@@ -22,6 +22,12 @@ class System:
         self._tasks.append(task)
 
     def simulate_schedule(self, schedule: List[AbstractTask] = None, **kwargs):
+        """
+
+        :param schedule:
+        :param kwargs:
+        :return:
+        """
         if schedule is None:
             schedule = self._schedule
         return self.scheduler.simulate_execution(schedule, **kwargs)

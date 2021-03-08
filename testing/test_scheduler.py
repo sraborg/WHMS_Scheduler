@@ -349,60 +349,41 @@ class TestScheduler(unittest.TestCase):
         loaded_tasks = sys.scheduler.load_tasklist("test_save_load.cvs")
         self.assertEqual(sys._tasks, loaded_tasks)
 
+    def test_permutate_schedule_by_blockinsert_preserves_list_size(self):
+        """
+        Tests if the Metaheuristic Scheduler method "permute_by_block_insert" preserves the list size.
+        :return: Returns True if the size remains the same, otherwise false
+        """
+        l = [1,2,3,4,5,6,7,8,9,0]
+        l2 = l[:]
+        scheduler = MetaHeuristicScheduler()
+        MetaHeuristicScheduler.permute_schedule_by_blockinsert(l)
 
-    '''
-    def test_adp_visit_node_pass_update_ant_position(self):
-        t1 = DummyTask()
-        time = datetime.now().timestamp()
-        ant = Ant()
+        self.assertEqual(len(l), len(l2))
 
-        tasks = [t1]
-        adp = AntDependencyTree(tasks)
-        node = adp.get_node(t1)
-        adp.visit_node(ant, node, time)
-        self.assertTrue(ant.last_visited_node() == (node, time))
+    def test_permutate_schedule_by_reverse_preserves_list_size(self):
+        """
+        Tests if the Metaheuristic Scheduler method "permute_by_block_reverse" preserves the list size.
+        :return: Returns True if the size remains the same, otherwise false
+        """
+        l = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+        l2 = l[:]
+        scheduler = MetaHeuristicScheduler()
+        MetaHeuristicScheduler.permute_schedule_by_inverse(l)
 
-    
-    def test_adp_visit_node_pass_update_pheromone(self):
-        t1 = DummyTask()
-        time = datetime.now().timestamp()
-        ant = Ant()
-        ant2 = Ant()
+        self.assertEqual(len(l), len(l2))
 
-        tasks = [t1]
-        adp = AntDependencyTree(tasks)
-        node = adp.get_node(t1)
-        adp.visit_node(ant, node, time)
-        adp.visit_node(ant2, node, time)
-        edge = adp._pheromones[(None, (node, time))]
-        self.assertEqual(edge, 20000)
-    '''
-##
-    '''
-    def test_verify_dependencies_passes_no_dependencies(self):
-        prior_tasks = []
-        tasks_with_dependencies = []
-        task_1 = DummyTask()
-        prior_tasks.append(task_1)
+    def test_permutate_schedule_by_transport_preserves_list_size(self):
+        """
+        Tests if the Metaheuristic Scheduler method "permute_by_block_reverse" preserves the list size.
+        :return: Returns True if the size remains the same, otherwise false
+        """
+        l = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+        l2 = l[:]
+        scheduler = MetaHeuristicScheduler()
+        MetaHeuristicScheduler.permute_schedule_by_transport(l)
 
-        sch = DummyScheduler()
-
-        self.assertTrue(sch._verify_dependencies(tasks_with_dependencies, prior_tasks))
-
-    def test_verify_dependencies_fails_dependencies_with_no_prior_tasks(self):
-        prior_tasks = []
-        tasks_with_dependencies = []
-        task_1 = DummyTask()
-        task_2 = DummyTask()
-        task_1.add_dependency(task_2)
-
-        tasks_with_dependencies.append(task_1)
-
-        sch = DummyScheduler()
-
-        self.assertFalse(sch._verify_dependencies(tasks_with_dependencies, prior_tasks))
-    '''
-
+        self.assertEqual(len(l), len(l2))
 
 if __name__ == '__main__':
     unittest.main()

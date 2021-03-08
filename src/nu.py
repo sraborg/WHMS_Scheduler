@@ -17,7 +17,7 @@ class AbstractNu(ABC):
         self._model = None
         self._f = None
         self._min_regression_value = 0
-        self._invalid_time_value = -0.1
+        self._invalid_time_value = 0
         self._earliest_start: datetime = None
         self._soft_deadline: datetime = None
         self._hard_deadline: datetime = None
@@ -36,10 +36,14 @@ class AbstractNu(ABC):
 
     @abstractmethod
     def fit_model(self, values: List[Tuple[datetime, float]]):
-        """
+        """ Takes a list of timestamp/value tuples and determines the following
+        (1) earliest_start
+        (2) soft_deadline
+        (3) heard_deadline
 
-        :param values:
-        :return:
+        Also splits the tuples in to corresponding lists: x = timestamps & y = values
+
+        :param values: a list of timestamp/value tuples
         """
         self._values = values
         self._x, self._y = zip(*values)              # Time, Values
@@ -47,18 +51,17 @@ class AbstractNu(ABC):
         self._soft_deadline = datetime.fromtimestamp(max(values, key=itemgetter(1))[0])
         self._hard_deadline = datetime.fromtimestamp(max(self._y))
 
-    def eval(self, x):
-        """
+    def eval(self, timestamp):
+        """ Determines the value of executing task with respect to the given timestamp
 
-        :param x:
-        :return:
+        :param timestamp: the input timestamp
+        :return: the corresponding value
         """
-        if x < min(self._x) or x > max(self._x):    # Out of scheduling window (too early/late)
+        if timestamp < min(self._x) or timestamp > max(self._x):    # Out of scheduling window (too early/late)
             return self._invalid_time_value
-        elif self._f(x) < 0:                        # Fixing negative values returned by regression
-            return self._min_regression_value
-        else:
-            return self._f(x)
+
+        # Fixing negative values returned by regression
+        return max (self._f(timestamp), self._min_regression_value)
 
     @abstractmethod
     def name(self) -> str:

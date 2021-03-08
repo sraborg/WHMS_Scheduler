@@ -4,7 +4,8 @@ import numpy as np
 from task import AbstractTask, SleepTask, AntTask, UserTask
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
-from math import ceil, floor, e
+from math import ceil, floor, e, exp
+import sympy
 import random
 import copy
 
@@ -286,21 +287,6 @@ class AbstractScheduler(ABC):
         :param interval:
         :param kwargs:
         :return:
-        """
-
-        """
-        optimization_horizon = None
-        calculated_horizon = AbstractScheduler.calculate_optimization_horizon(tasklist)
-
-        if self._optimization_horizon is None or calculated_horizon > self._optimization_horizon:
-            optimization_horizon = calculated_horizon
-        else:
-            optimization_horizon = self._optimization_horizon
-
-        if "start_time" in kwargs:
-            start_time = kwargs.get("start_time")
-        else:
-            start_time = self.start_time
         """
 
         # Calculate the number of sleep tasks needed
@@ -600,6 +586,127 @@ class MetaHeuristicScheduler(AbstractScheduler):
 
         return True
 
+    @staticmethod
+    def permute_schdule_by_swap(schedule: List, first_index=None):
+        """
+        Permutes a given schedule in place by swapping the positions of two random tasks.
+        User may optionally choose one of the tasks to swap by passing in its index.
+
+        :param schedule: The original Schedule
+        :param first_index: (Optional) the index of the a task to be swapped.
+        """
+
+        if schedule is None or len(schedule) < 2:
+            raise ValueError("Schedule must have at least 2 tasks.")
+
+        l = len(schedule)-1
+        if first_index is None:
+            first_index = random.randint(0, l)
+        second_index = random.randint(0, l)
+
+        temp = schedule[first_index]
+        schedule[first_index] = schedule[second_index]
+        schedule[second_index] = temp
+
+    @staticmethod
+    def permute_schedule_by_blockinsert(schedule: List, first_index=None):
+        """ Permutes a given schedule in place by:
+         (1) selecting two indices,
+         (2) taking the segment starting with the index further in the list to the end of the list,
+         (3) shifting the segment to right after the first index
+
+         User may optionally choose one of the tasks to swap by passing in its index.
+
+         Ex) Given schedule [1,2,3,4,5] and indices (0,3) --> [1,4,5,2,3]
+
+        :param schedule: The original Schedule
+        :param first_index: (Optional) the index of the a task to use.
+        """
+        if schedule is None or len(schedule) < 2:
+            raise ValueError("Schedule must have at least 2 tasks.")
+
+        l = len(schedule) - 1
+        if first_index is None:
+            first_index = random.randint(0, l)
+        second_index = random.randint(0, l)
+
+        # Make sure first_index is smallest
+        if second_index < first_index:
+            temp = first_index
+            first_index = second_index
+            second_index = temp
+
+        block = schedule[second_index:]
+        del schedule[second_index:]
+        schedule[first_index+1:first_index+1] = block
+
+    @staticmethod
+    def permute_schedule_by_inverse(schedule: List, first_index=None):
+        """ Permutes a given schedule in place by:
+         (1) selecting two indices,
+         (2) reversing the order of the segment between the two indices,
+
+         User may optionally choose one of the tasks to swap by passing in its index.
+
+         Ex) Given schedule [1,2,3,4,5] and indices (0,3) --> [4,3,2,1,5]
+
+        :param schedule: The original Schedule
+        :param first_index: (Optional) the index of the a task to use.
+        """
+
+        if schedule is None or len(schedule) < 2:
+            raise ValueError("Schedule must have at least 2 tasks.")
+
+        l = len(schedule) - 1
+        if first_index is None:
+            first_index = random.randint(0, l)
+        second_index = random.randint(0, l)
+
+        # Make sure first_index is smallest
+        if second_index < first_index:
+            temp = first_index
+            first_index = second_index
+            second_index = temp
+
+        block = schedule[first_index+1:second_index]
+        block.reverse()
+        schedule[first_index + 1:second_index] = block
+
+    @staticmethod
+    def permute_schedule_by_transport(schedule: List, first_index=None):
+        """ Permutes a given schedule in place by:
+         (1) selecting two indices,
+         (2) taking the segment between the two indices,
+         (3) placing the segment into a random point in the schedule
+
+         User may optionally choose one of the tasks to use by passing in its index.
+
+         Ex) Given schedule [1,2,3,4,5] and indices (2,3) (and a random insertion index of 1) --> [1,3,4,2,5]
+
+        :param schedule: The original Schedule
+        :param first_index: (Optional) the index of the a task to use.
+        """
+
+        if schedule is None or len(schedule) < 2:
+            raise ValueError("Schedule must have at least 2 tasks.")
+
+        l = len(schedule) - 1
+        if first_index is None:
+            first_index = random.randint(0, l)
+        second_index = random.randint(0, l)
+
+        # Make sure first_index is smallest
+        if second_index < first_index:
+            temp = first_index
+            first_index = second_index
+            second_index = temp
+
+        block = schedule[first_index:second_index]
+        del schedule[first_index:second_index]
+
+        insertion_index = random.randint(0, len(schedule) - 1)
+        schedule[insertion_index:insertion_index] = block
+
 
 class RandomScheduler(AbstractScheduler):
 
@@ -768,18 +875,16 @@ class GeneticScheduler(MetaHeuristicScheduler):
         return next_generation
 
     def _mutation(self, population):
-        """
+        """ Probabilistically "mutates" each task in the schedule based on the mutation rate.
+        When a mutation occurs the task position is swapped with another task in the schedule (at random)
 
-        :param population:
-        :return:
+        :param population: The population (schedule) to mutate
+        :return: returns the mutated schedule
         """
         for schedule in population:
             for i, task in enumerate(schedule):
                 if random.random() <= self.mutation_rate:
-                    next_index = random.randint(0, len(schedule)-1)
-                    temp = task
-                    schedule[i] = schedule[next_index]
-                    schedule[next_index] = temp
+                    self.permute_schdule_by_swap(schedule, i)
 
         return population
 
@@ -1405,7 +1510,7 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         :param kwargs:
         """
         super().__init__(**kwargs)
-        self.temperature = kwargs.get("temperature", 10000)
+        self.temperature = kwargs.get("temperature", 50)
         self.solution_space_size = kwargs.get("solution_space_size", 10000)
         self.decay_method = kwargs.get("decay_method", SimulateAnnealingScheduler.geometric_decay)
         self.decay_constant = kwargs.get("decay_constant", 0.9)
@@ -1413,6 +1518,7 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         self.num_neighbors = 2
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
+        np.seterr(all='raise')
         print("Generating Schedule with Simulated Annealing")
         start_runtime = datetime.now()
 
@@ -1429,11 +1535,11 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         while not converged:
             temp = self._temperature(temp, self.decay_method)
 
-            neighbor = self._neighbors(current_state)
+            neighbor = self._neighbor(current_state)
             neighbor_energy = self._energy(neighbor)
 
             # Possibly change state
-            if self._probability(current_state_energy, neighbor_energy, temp) >= random.uniform(0, 1):
+            if self._acceptance_probability(current_state_energy, neighbor_energy, temp) >= random.uniform(0, 1):
                 current_state = neighbor
                 current_state_energy = neighbor_energy
 
@@ -1441,6 +1547,7 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
                     old_best_value = best_solution_value
                     current_state_value = self.simulate_execution(current_state)
 
+                    # Update Best Solution
                     if best_solution_value < current_state_value:
                         best_solution = current_state
                         best_solution_value = current_state_value
@@ -1486,34 +1593,27 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         else:
             raise ValueError("Invalid Decay Method Used")
 
-    def _neighbors(self, state):
+    def _neighbor(self, state):
         """
 
         :param state:
         :param solution_space:
         :return:
         """
+        candidate = state[:]
 
-        if random.uniform(0, 1) < 0.5:
-            return self._reverse(state)
-        else:
-            return self._transport(state)
+        # Choose a permutation method at random
+        method = random.choice([
+            self.permute_schedule_by_blockinsert,
+            self.permute_schedule_by_inverse,
+            self.permute_schdule_by_swap,
+            self.permute_schedule_by_transport
+        ])
+        method(candidate)
 
-    def _reverse(self, state):
-        """
+        return candidate
 
-        :param state:
-        :return:
-        """
-        new_state = copy.copy(state)
-        index = random.randint(0, len(new_state) - 1)
-        next_index = random.randint(0, len(new_state) - 1)
-        temp = new_state[index]
-        new_state[index] = new_state[next_index]
-        new_state[next_index] = temp
-
-        return new_state
-
+    """
     def _transport(self, state):
         new_state = copy.copy(state)
         index = random.randint(0, len(new_state) - 1)
@@ -1526,13 +1626,32 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         new_state[insertion_index:insertion_index] = slice
 
         return new_state
+    """
 
-    def _probability(self, energy, energy_new, temp):
-        change = energy - energy_new
-        if change > 0:
+    def _acceptance_probability(self, energy: float, energy_new: float, temp):
+        """ Determines the probability of accepting the new state based on its energy.
+
+        :param energy: energy value of the current state
+        :param energy_new: energey value of the new state
+        :param temp: Current Temperature
+        :return: Returns the probability of accepting the new state.
+        """
+        lowest = min(energy, energy_new)
+
+        # Dealing with negative Energy states
+        if lowest < 0:
+            offset = -lowest
+            energy = energy + offset
+            energy_new = energy_new + offset
+
+        if energy_new <= energy:
             return 1
         else:
-            return e**(-change/temp)
+            change = energy_new - energy
+            x = sympy.Rational(-change,temp)
+            p: float = exp(x)
+            return p
 
     def _energy(self, state):
-        return 1 / self.simulate_execution(state)
+        val = self.simulate_execution(state)
+        return sympy.Rational(1, val)
