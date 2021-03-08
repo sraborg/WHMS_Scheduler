@@ -119,7 +119,7 @@ class NuConstant(AbstractNu):
         self._earliest_start: datetime = now
         self._soft_deadline: datetime = now
         self._hard_deadline: datetime = now
-        self._value = kwargs.get("CONSTANT_VALUE", 1)
+        self._value = kwargs.get("CONSTANT_VALUE", 0.5)
 
     def fit_model(self, values: List[Tuple[datetime, int]]):
         """ Not Used

@@ -1,17 +1,14 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Optional, List, Tuple
+from typing import Optional, List
 import json
 import copy           # Used in task_builder to fix error with getTask
 from nu import NuFactory, NuRegression, NuConstant
 from analysis import AnalysisFactory
-from analysis import AbstractAnalysis, DummyAnalysis, SleepAnalysis
-from nu import AbstractNu                                  # Type Hint
+from analysis import SleepAnalysis
 from nu import NuRegression
-#from scheduler import Ant
 import random
-from time import sleep
 
 
 class AbstractTask(ABC):
@@ -82,38 +79,6 @@ class AbstractTask(ABC):
     @property
     def wcbu(self):
         return self.analysis.wcbu
-
-    @property
-    def queue_time(self):
-        return self._queue_time
-
-    @queue_time.setter
-    def queue_time(self, time):
-        self._queue_time = time
-
-    @property
-    def release_time(self):
-        return self._release_time
-
-    @release_time.setter
-    def release_time(self, time):
-        self._release_time = time
-
-    @property
-    def completion_time(self):
-        return self._completion_time
-
-    @completion_time.setter
-    def completion_time(self, time):
-        self._completion_time = time
-
-    @property
-    def execution_time(self):
-        return self._execution_time
-
-    @execution_time.setter
-    def execution_time(self, time):
-        self._completion_time = time
 
     def execute(self):
         self.analysis.execute()
@@ -339,6 +304,39 @@ class UserTask(AbstractTask):
     def name(self):
         return "User"
 
+    @property
+    def queue_time(self):
+        return self._queue_time
+
+    @queue_time.setter
+    def queue_time(self, time):
+        self._queue_time = time
+
+    @property
+    def release_time(self):
+        return self._release_time
+
+    @release_time.setter
+    def release_time(self, time):
+        self._release_time = time
+
+    @property
+    def completion_time(self):
+        return self._completion_time
+
+    @completion_time.setter
+    def completion_time(self, time):
+        self._completion_time = time
+
+    @property
+    def execution_time(self):
+        return self._execution_time
+
+    @execution_time.setter
+    def execution_time(self, time):
+        self._completion_time = time
+
+
 class SystemTask(AbstractTask):
     pass
 
@@ -349,8 +347,7 @@ class SleepTask(SystemTask):
         super().__init__()
 
         # Setup NuConstant
-        self._value = kwargs.get("SLEEP_VALUE", 1)
-        value = kwargs.get("SLEEP_VALUE", 1)
+        value = kwargs.get("SLEEP_VALUE", 0.5)
         self.nu = NuConstant(CONSTANT_VALUE=value)
 
         # Setup SleepAnalysis
@@ -544,78 +541,3 @@ class AntTask(TaskDecorator):
     def accept(self, ant, timestamp):
         self.visited_by.append(ant)
         ant.visit(self, timestamp)
-
-"""
-class TaskWithPeriodicity(TaskDecorator):
-
-    def __init__(self, task: AbstractTask, **kwargs):
-        super().__init__(task)
-        self._peridic_interval = None
-        if "periodic_interval" in kwargs:
-            self._peridic_interval = kwargs.get("periodic_interval")
-        else:
-            raise ValueError("No Periodic Interval Set")
-
-    def is_periodic(self):
-        return True
-
-
-class TaskWithDependencies(TaskDecorator):
-
-    def __init__(self, task: AbstractTask):
-        super().__init__(task)
-
-    def execute(self):
-        # something with dependenciesa
-        self._task.execute()
-
-
-class TaskWithDynamicTasks(TaskDecorator):
-
-    def __init__(self, task: AbstractTask):
-        super().__init__(task)
-
-    def execute(self):
-        self._task.execute()
-        self._check_dynamic_tasks()
-
-    def _check_dynamic_tasks(self):
-        for dyn_task in self.dynamic_tasks:
-            if dyn_task[1]:
-                tasks = self._task.future_tasks.append(dyn_task[0])
-"""
-
-''' Builder for Generating DummyTasks 
-
-'''
-
-"""
-class DummyTaskBuilder(AbstractTaskBuilder):
-
-    def __init__(self):
-        super().__init__()
-
-    def build_task(self):
-        task = Task(self)  # Temp Fix for reference issue
-        return task
-
-
-class TaskFactory():
-
-    @staticmethod
-    def get_task(task_type: str, **kwargs) -> AbstractTask:
-
-        if task_type.upper() == "SLEEP":
-            return SleepTask(**kwargs)
-        elif task_type.upper() == "DUMMY":
-            return DummyTask()
-        else:
-            return Task()
-
-    @classmethod
-    def sleep_task(cls, wcet=5):
-        task = Task()
-        task.analysis = SleepAnalysis(wcet=wcet)
-        return SleepTask()
-
-"""
