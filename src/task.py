@@ -13,98 +13,11 @@ from nu import NuRegression
 import random
 from time import sleep
 
-"""
-class AbstractTaskBuilder(ABC):
-
-    def __init__(self):
-        self._analysis: Optional[AbstractAnalysis] = None
-        self._nu: Optional[AbstractNu] = None
-        self._earliest_start: datetime = None
-        self._soft_deadline: datetime = None
-        self._hard_deadline: datetime = None
-        self._dependent_tasks = []
-        self._dynamic_tasks = None  # potential tasks
-        self._new_tasks = None
-        self._periodic = False
-        self.reset()
-
-    def reset(self):
-        self._analysis = None
-        self._nu = NuRegression()                       # Defaults to Regression
-        self._earliest_start = None
-        self._soft_deadline = None
-        self._hard_deadline = None
-        self._dependent_tasks = []
-        self._dynamic_tasks = None  # potential tasks
-        self._new_tasks = None
-        self._periodic = False
-
-    @abstractmethod
-    def build_task(self):
-        pass
-
-    def set_analysis(self, analysis_type: str):
-        self._analysis = AnalysisFactory.get_analysis(analysis_type)
-
-    def set_nu(self, method: str) -> None:
-        self._nu = NuFactory.get_nu("Regression")
-
-    def fit_model(self, values: List[Tuple[datetime, int]]):
-        self._nu.fit_model(values)
-
-    def set_earliest_start(self, start_time: datetime):
-        self._earliest_start = start_time
-
-    def set_soft_deadline(self, time):
-        self._soft_deadline = time
-
-    def set_hard_deadline(self, time):
-        self._hard_deadline = time
-
-    def set_periodic(self):
-        self._periodic = True
-
-    def add_dependencies(self, dependencies):
-        self._dependent_tasks = dependencies
-
-    def add_dynamic_tasks(self, tasks):
-        self._dynamic_tasks = tasks
-
-    # Accessors Methods
-    @property
-    def analysis(self):
-        return self._analysis
-
-    @property
-    def nu(self):
-        return self._nu
-
-    @property
-    def earliest_start(self) -> datetime:
-        return self._earliest_start
-
-    @property
-    def soft_deadline(self) -> datetime:
-        return self._soft_deadline
-
-    @property
-    def hard_deadline(self) -> datetime:
-        return self._hard_deadline
-
-    @property
-    def dependent_tasks(self):
-        return self._dependent_tasks
-
-    @property
-    def dynamic_tasks(self):
-        return self._dynamic_tasks
-"""
 
 class AbstractTask(ABC):
 
     def __init__(self, **kwargs):
         self.analysis = kwargs.get("analysis", None)
-        self.ordered_by = kwargs.get("ordered_by", "")
         self.values = kwargs.get("values", [])
         self.nu = kwargs.get("nu", None)
         self.periodicity: int = kwargs.get("periodicity", 0)
@@ -112,10 +25,7 @@ class AbstractTask(ABC):
         self._dependent_tasks: List[AbstractTask] = kwargs.get("dependent_tasks", [])
         self._dynamic_tasks = kwargs.get("dynamic_tasks", [])        # potential tasks
         self._future_tasks = []                           # Tasks
-        self._queue_time = None
-        self._release_time: datetime = None
-        self._completion_time: datetime = None
-        self._execution_time: datetime = None
+
 
     @property
     def earliest_start(self):
@@ -417,102 +327,38 @@ class AbstractTask(ABC):
 
 class UserTask(AbstractTask):
 
-    def __init__(self, builder: AbstractTaskBuilder=None, **kwargs):
-        """
-        if builder is None:
-            builder = DummyTaskBuilder()
+    def __init__(self, **kwargs):
 
-        super().__init__(builder)
-        """
         super().__init__(**kwargs)
+        self.ordered_by = kwargs.get("ordered_by", "")
+        self._queue_time = None
+        self._release_time: datetime = None
+        self._completion_time: datetime = None
+        self._execution_time: datetime = None
 
     def name(self):
         return "User"
 
-
 class SystemTask(AbstractTask):
     pass
-
-"""
-class DummyTask(AbstractTask):
-
-    def __init__(self, builder: AbstractTaskBuilder = None, **kwargs):
-
-        if builder is None:
-            builder = DummyTaskBuilder()
-
-        super().__init__(builder)
-        if "runtime" in kwargs:
-            self.runtime = kwargs.get("runtime")
-        else:
-            self.runtime = 5
-
-        if "analysis_type" in kwargs and str.upper(kwargs.get("analysis_type")) == "SLEEPANALYSIS":
-            self.analysis = SleepAnalysis()
-        else:
-            self.analysis = DummyAnalysis(wcet=self.runtime)
-
-    def execute(self):
-        self.analysis.execute()
-        #sleep(self.runtime)
-
-    def name(self):
-        return "DUMMY"
-"""
 
 
 class SleepTask(SystemTask):
 
     def __init__(self, **kwargs):
         super().__init__()
+
+        # Setup NuConstant
         self._value = kwargs.get("SLEEP_VALUE", 1)
+        value = kwargs.get("SLEEP_VALUE", 1)
+        self.nu = NuConstant(CONSTANT_VALUE=value)
 
+        # Setup SleepAnalysis
         wcet = kwargs.get("wcet", 5)
-
-        if "analysis_type" in kwargs and str.upper(kwargs.get("analysis_type")) == "SLEEPANALYSIS":
-            self.analysis = SleepAnalysis(wcet=wcet)
-        else:
-            self.analysis = DummyAnalysis(wcet=wcet)
-
-        self.earliest_start: datetime = datetime.now()
-        self.soft_deadline: datetime = self._earliest_start
-        self.hard_deadline: datetime = self._earliest_start
-
-    @property
-    def earliest_start(self):
-        return self._earliest_start
-
-    @earliest_start.setter
-    def earliest_start(self, value: datetime):
-        self._earliest_start = value
-
-    @property
-    def soft_deadline(self):
-        return self._soft_deadline
-
-    @soft_deadline.setter
-    def soft_deadline(self, value: datetime):
-        self._soft_deadline = value
-
-    @property
-    def hard_deadline(self):
-        return self._hard_deadline
-
-    @hard_deadline.setter
-    def hard_deadline(self, value: datetime):
-        self._hard_deadline = value
+        self.analysis = SleepAnalysis(wcet=wcet)
 
     def execute(self):
         self.analysis.execute()
-        #sleep(self.runtime)
-
-    def value(self, **kwargs):
-        """
-
-        :param kwargs:
-        :return:
-        """
-        return self._value
 
     def name(self):
         return "SLEEP"
@@ -737,31 +583,6 @@ class TaskWithDynamicTasks(TaskDecorator):
         for dyn_task in self.dynamic_tasks:
             if dyn_task[1]:
                 tasks = self._task.future_tasks.append(dyn_task[0])
-"""
-
-"""
-class TaskBuilder(AbstractTaskBuilder):
-
-    def __init__(self):
-        super().__init__()
-
-    def build_task(self):
-
-        build_order = copy.copy(self)
-        task = UserTask(build_order)                    # Temp Fix for reference issue
-
-        if self.set_periodic():
-            task = TaskWithPeriodicity(task)
-
-        # Use decorators to add dependencies / dynamic tasks
-        if self._dependent_tasks is not None:
-            task = TaskWithDependencies(task)
-
-        if self._dynamic_tasks is not None:
-            task = TaskWithDynamicTasks(task)
-
-        self.reset()
-        return task
 """
 
 ''' Builder for Generating DummyTasks 

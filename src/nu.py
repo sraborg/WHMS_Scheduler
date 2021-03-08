@@ -36,12 +36,12 @@ class AbstractNu(ABC):
 
     @abstractmethod
     def fit_model(self, values: List[Tuple[datetime, float]]):
-        """ Takes a list of timestamp/value tuples and determines the following
+        """ Takes a list of datetimes/value tuples and determines the following
         (1) earliest_start
         (2) soft_deadline
         (3) heard_deadline
 
-        Also splits the tuples in to corresponding lists: x = timestamps & y = values
+        Also splits the tuples in to corresponding lists: x = datetimes & y = values
 
         :param values: a list of timestamp/value tuples
         """
@@ -111,22 +111,29 @@ class NuRegression(AbstractNu):
 class NuConstant(AbstractNu):
 
     def __init__(self, **kwargs):
-        super().__init__()
-        self._value = kwargs.get("constant", 1)
+        #super().__init__()
+
+        # Set's earliest_start/soft_deadline/hard_deadline
+        # Note these values aren't used, but are set to avoid issues
+        now = datetime.now()
+        self._earliest_start: datetime = now
+        self._soft_deadline: datetime = now
+        self._hard_deadline: datetime = now
+        self._value = kwargs.get("CONSTANT_VALUE", 1)
 
     def fit_model(self, values: List[Tuple[datetime, int]]):
-        """
+        """ Not Used
 
         :param values:
         :return:
         """
         pass
 
-    def eval(self, x):
-        """
+    def eval(self, timestamp):
+        """ Returns a constant value regardless of the timestamp value
 
-        :param x:
-        :return:
+        :param timestamp: a timestamp (not used, value is constant)
+        :return: the constant value
         """
         return self._value
 

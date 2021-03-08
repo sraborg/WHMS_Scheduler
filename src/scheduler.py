@@ -280,13 +280,14 @@ class AbstractScheduler(ABC):
 
         return new_tasklist
 
-    def generate_sleep_tasks(self, tasklist: List[AbstractTask], interval, **kwargs):
-        """
+    def generate_sleep_tasks(self, tasklist: List[AbstractTask], interval):
+        """ Generates sleep tasks for the task list. It works by first calculating the maximum execution
+        of entire task list (using each tasks WCET). Then it fills the remaining time left within the
+        planning horizon with sleep tasks.
 
-        :param tasklist:
+        :param tasklist: The list of tasks
         :param interval:
-        :param kwargs:
-        :return:
+        :return: A new task list with sleep tasks added
         """
 
         # Calculate the number of sleep tasks needed
@@ -301,13 +302,11 @@ class AbstractScheduler(ABC):
 
         return sleep_tasks
 
-    def generate_periodic_tasks(self, tasklist: List[AbstractTask], **kwargs):
-        """
+    def generate_periodic_tasks(self, tasklist: List[AbstractTask]):
+        """  Generates all possible periodic tasks that can be executed within planning horizon
 
-        :param tasklist:
-        :param interval:
-        :param kwargs:
-        :return:
+        :param tasklist: A list of tasks
+        :return: A new list with the periodic tasks added
         """
         new_periodic_tasks = []
 
