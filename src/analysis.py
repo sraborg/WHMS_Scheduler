@@ -46,22 +46,28 @@ class DummyAnalysis(AbstractAnalysis):
         return "DUMMY"
 
 
-class HeartRateAnalysis(AbstractAnalysis):
+class MedicalAnalysis(AbstractAnalysis):
 
     def name(self) -> str:
-        return "HEART_RATE"
+        pass
+
+    def execute(self):
+        print("Running " + self.name() + " Analysis")
+        sleep(self.wcet)
+
+
+class HeartRateAnalysis(MedicalAnalysis):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.wcet = 120
         self.wcbu = 1
 
-    def execute(self):
-        print("Analyzing Heart Rate")
-        sleep(self.wcet)
+    def name(self) -> str:
+        return "HEART_RATE"
 
 
-class BloodPressureAnalysis(AbstractAnalysis):
+class BloodPressureAnalysis(MedicalAnalysis):
     def name(self) -> str:
         return "BLOOD_PRESSURE"
 
@@ -70,9 +76,85 @@ class BloodPressureAnalysis(AbstractAnalysis):
         self.wcet = 60
         self.wcbu = 1
 
-    def execute(self):
-        print("Analyzing Heart Rate")
-        sleep(self.wcet)
+
+class RespiratoryRateAnalysis(MedicalAnalysis):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.wcet = 300
+        self.wcbu = 1
+
+    def name(self) -> str:
+        return "Respiratory Rate"
+
+
+class ElectrocardiogramAnalysis(MedicalAnalysis):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.wcet = 10
+        self.wcbu = 1
+
+    def name(self) -> str:
+        return "Electrocardiogram (ECG)"
+
+
+class Electroencephalography(MedicalAnalysis):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.wcet = 1800
+        self.wcbu = 1
+
+    def name(self) -> str:
+        return "Electroencephalography (EEG)"
+
+
+class BodyTemperatureAnalysis(MedicalAnalysis):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.wcet = 30
+        self.wcbu = 1
+
+    def name(self) -> str:
+        return "Body Temperature"
+
+
+class MotionAnalysis(MedicalAnalysis):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.wcet = 600
+        self.wcbu = 1
+
+    def name(self) -> str:
+        return "Motion"
+
+
+class BloodGlucoseAnalysis(MedicalAnalysis):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.wcet = 20
+        self.wcbu = 1
+
+    def name(self) -> str:
+        return "Blood Glucose"
+
+
+class ExerciseAnalysis(MedicalAnalysis):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.wcet = 1200
+        self.wcbu = 1
+
+    def name(self) -> str:
+        return "Exercise"
+
+
+class StressAnalysis(MedicalAnalysis):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.wcet = 480
+        self.wcbu = 1
+
+    def name(self) -> str:
+        return "Stress"
 
 
 class SleepAnalysis(AbstractAnalysis):
@@ -121,3 +203,43 @@ class AnalysisFactory:
     @classmethod
     def sleep_analysis(cls):
         return SleepAnalysis()
+
+    @classmethod
+    def heart_rate_analysis(cls):
+        return HeartRateAnalysis()
+
+    @classmethod
+    def blood_pressure_analysis(cls):
+        return BloodPressureAnalysis()
+
+    @classmethod
+    def respiratory_rate_analysis(cls):
+        return RespiratoryRateAnalysis()
+
+    @classmethod
+    def electrocardiogram_analysis(cls):
+        return ElectrocardiogramAnalysis()
+
+    @classmethod
+    def electroencephalography_analysis(cls):
+        return Electroencephalography()
+
+    @classmethod
+    def body_temperature_analysis(cls):
+        return BodyTemperatureAnalysis()
+
+    @classmethod
+    def motion_analysis(cls):
+        return MotionAnalysis()
+
+    @classmethod
+    def blood_glucose_analysis(cls):
+        return BloodGlucoseAnalysis()
+
+    @classmethod
+    def exercise_analysis(cls):
+        return ExerciseAnalysis()
+    
+    @classmethod
+    def stress_analysis(cls):
+        return StressAnalysis()

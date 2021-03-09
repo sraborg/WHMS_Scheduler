@@ -1843,16 +1843,21 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
         if elapsed_time < MAX_START:
              weight: float = max( (elapsed_time / MAX_START) * 3, 1)
              vmlc = ceil(weight * (mcl / 2))
-             print("early: " + str(vmlc))
+             if self.verbose:
+                print("early: " + str(vmlc))
              return vmlc
         elif elapsed_time > MAX_START and elapsed_time < MAX_END:
             vmlc = ceil(3 * mcl/2)
-            print("max: " + str(vmlc))
+            if self.verbose:
+                print("max: " + str(vmlc))
             return vmlc
         else:   # Case elapsed_time > MAX_END
-            weight: float = max(((elapsed_time - MAX_END) / ((duration * 60) - MAX_END)) * 3, 1)
+            end_time = duration * 60
+            period = end_time - MAX_END
+            weight: float = max((period - (elapsed_time - MAX_END)) / period * 3, 1)
             vmlc = ceil(weight * (mcl / 2))
-            print("late: " + str(vmlc))
+            if self.verbose:
+                print("late: " + str(vmlc))
             return vmlc
 
     def _algorithm_name(self):
