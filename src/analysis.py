@@ -110,7 +110,7 @@ class Electroencephalography(MedicalAnalysis):
 class BodyTemperatureAnalysis(MedicalAnalysis):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 30
+        self.wcet = 15
         self.wcbu = 1
 
     def name(self) -> str:
@@ -239,7 +239,7 @@ class AnalysisFactory:
     @classmethod
     def exercise_analysis(cls):
         return ExerciseAnalysis()
-    
+
     @classmethod
     def stress_analysis(cls):
         return StressAnalysis()
