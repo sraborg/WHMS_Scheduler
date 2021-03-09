@@ -385,5 +385,37 @@ class TestScheduler(unittest.TestCase):
 
         self.assertEqual(len(l), len(l2))
 
+    def test_remove_top_(self):
+        tq = TemperatureQueue()
+
+        tq.push(19)
+        tq.push(32)
+        tq.push(35)
+        tq.push(23)
+        tq.push(82)
+        tq.push(49)
+
+        before = len(tq)
+        tq.remove_top(2)
+        after = len(tq)
+        self.assertEqual(before, after + 2)
+        largest = tq.pop()
+        self.assertEqual(largest, 35)
+
+    def test_peek_(self):
+        tq = TemperatureQueue()
+
+        tq.push(19)
+        tq.push(32)
+        tq.push(35)
+        tq.push(23)
+        tq.push(82)
+        tq.push(49)
+
+        p1 = tq.peek()
+        self.assertEqual(p1, 82)
+        p2 = tq.peek()
+        self.assertEqual(p1, p2)
+
 if __name__ == '__main__':
     unittest.main()

@@ -4,10 +4,11 @@ import numpy as np
 from task import AbstractTask, SleepTask, AntTask, UserTask
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
-from math import ceil, floor, e, exp
+from math import ceil, floor, log, exp
 import sympy
 import random
 import copy
+import heapq
 
 
 class SchedulerFactory:
@@ -51,6 +52,31 @@ class SchedulerFactory:
                             verbose=verbose,
                             invalid_schedule_value=invalid_schedule_value,
                             **kwargs)
+
+    @classmethod
+    def enhanced_list_based_simulated_annealing(cls,
+                            temperature=10000,
+                            max_iterations=100,
+                            threshold=0.01,
+                            generational_threshold=10,
+                            start_time=None,
+                            end_time=None,
+                            verbose=False,
+                            invalid_schedule_value=-1000.0,
+                            **kwargs):
+
+        if start_time is None:
+            start_time = datetime.now()
+
+        return EnhancedListBasedSimulatedAnnealingScheduler(
+            temperature=temperature,
+            max_iterations=max_iterations,
+            threshold=threshold,
+            generational_threshold=generational_threshold,
+            start_time=start_time,
+            verbose=verbose,
+            invalid_schedule_value=invalid_schedule_value,
+            **kwargs)
 
     @classmethod
     def ant_scheduler(cls,
@@ -515,6 +541,7 @@ class MetaHeuristicScheduler(AbstractScheduler):
         self._current_value: float = 0
         self._progress = 0
 
+        self._converged = False
         self._flag_termination_by_duration = True
         self._flag_termination_by_max_iteration = False
         self._flag_termination_by_generational_delta = False
@@ -1514,51 +1541,63 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         self.decay_method = kwargs.get("decay_method", SimulateAnnealingScheduler.geometric_decay)
         self.decay_constant = kwargs.get("decay_constant", 0.9)
         self.elitism = True
-        self.num_neighbors = 2
+        self.local_searches = 10
+        self.best_solution = None
+        self.best_solution_value = 0
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         np.seterr(all='raise')
         print("Generating Schedule with Simulated Annealing")
         start_runtime = datetime.now()
 
+        self._converged = False
         new_task_list = self._initialize_tasklist(tasklist, interval)
 
+        # Set Starting State
         current_state = random.sample(new_task_list, len(new_task_list))
-        current_state_energy = self._energy(current_state)
-        best_solution = current_state
-        best_solution_value = self.simulate_execution(best_solution)
 
-        converged = False
+        # Set Best Solution
+        self.best_solution = current_state
+        self.best_solution_value = self.simulate_execution(self.best_solution)
+
         i = 0
-        temp = self.temperature
-        while not converged:
-            temp = self._temperature(temp, self.decay_method)
+        temp = self._initialize_temperature()
+        while not self._converged:
 
-            neighbor = self._neighbor(current_state)
-            neighbor_energy = self._energy(neighbor)
+            # Perform searches at current temp
+            current_state_energy = self._energy(current_state)
 
-            # Possibly change state
-            if self._acceptance_probability(current_state_energy, neighbor_energy, temp) >= random.uniform(0, 1):
-                current_state = neighbor
-                current_state_energy = neighbor_energy
+            for i in range(self.local_searches):
+                neighbor = self._neighbor(current_state)
+                neighbor_energy = self._energy(neighbor)
 
-                if self.elitism:
-                    old_best_value = best_solution_value
-                    current_state_value = self.simulate_execution(current_state)
+                # Possibly change state
+                if self._acceptance_probability(current_state_energy, neighbor_energy, temp) >= random.uniform(0, 1):
+                    current_state = neighbor
+                    current_state_energy = neighbor_energy
 
-                    # Update Best Solution
-                    if best_solution_value < current_state_value:
-                        best_solution = current_state
-                        best_solution_value = current_state_value
+                    if self.elitism:
+                        old_best_value = self.best_solution_value
+                        current_state_value = self.simulate_execution(current_state)
 
-                    # Termination by Generational Delta
-                    if self._flag_termination_by_generational_delta and \
-                            self._termination_by_generational_delta(old_best_value, best_solution_value): # Checks delta
-                        print("Generational Delta Threshold Met")
-                        print("Convergence Met after " + str(i) + " iterations")
-                        break
-                else:
-                    pass
+                        # Update Best Solution
+                        if self.best_solution_value < current_state_value:
+                            self.best_solution = current_state
+                            self.best_solution_value = current_state_value
+
+                        # Termination by Generational Delta
+                        if self._flag_termination_by_generational_delta and \
+                                self._termination_by_generational_delta(old_best_value,
+                                                                        self.best_solution_value):  # Checks delta
+                            print("Generational Delta Threshold Met")
+                            print("Convergence Met after " + str(i) + " iterations")
+                            self._converged = True
+                            break
+
+                # Termination by Duration
+                if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
+                    break
+
 
             # Termination by Max Iteration
             if self._flag_termination_by_max_iteration and self._termination_by_max_iterations(i):
@@ -1571,12 +1610,15 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
             if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
                  break
 
+            # Update temperature
+            temp = self._update_temperature(temp, self.decay_method)
+
         if self.elitism:
-            return best_solution
+            return self.best_solution
         else:
             return current_state
 
-    def _temperature(self, temp, decay_method=slow_decay):
+    def _update_temperature(self, temp, decay_method=slow_decay):
         """
 
         :param temp:
@@ -1612,21 +1654,6 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
 
         return candidate
 
-    """
-    def _transport(self, state):
-        new_state = copy.copy(state)
-        index = random.randint(0, len(new_state) - 1)
-        next_index = random.randint(index, len(new_state) - 1)
-        slice = state[index:next_index]
-
-        del new_state[index:next_index]
-
-        insertion_index = random.randint(0, len(new_state) - 1)
-        new_state[insertion_index:insertion_index] = slice
-
-        return new_state
-    """
-
     def _acceptance_probability(self, energy: float, energy_new: float, temp):
         """ Determines the probability of accepting the new state based on its energy.
 
@@ -1635,13 +1662,6 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         :param temp: Current Temperature
         :return: Returns the probability of accepting the new state.
         """
-        lowest = min(energy, energy_new)
-
-        # Dealing with negative Energy states
-        if lowest < 0:
-            offset = -lowest
-            energy = energy + offset
-            energy_new = energy_new + offset
 
         if energy_new <= energy:
             return 1
@@ -1654,3 +1674,219 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
     def _energy(self, state):
         val = self.simulate_execution(state)
         return sympy.Rational(1, val)
+
+    def _initialize_temperature(self, **kwargs):
+        return self.temperature
+
+
+class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.temperature_list_length = 100
+        self.local_searches = 20
+        self.pos = 0.4
+        self._temperatures = TemperatureQueue()
+        self.population_size = 1000
+
+    def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
+        print("Generating Schedule Using " + self._algorithm_name() + " Algorithm")
+        start_runtime = datetime.now()
+
+        self._converged = False
+        new_task_list = self._initialize_tasklist(tasklist, interval)
+
+        # Set Starting State
+        current_state = random.sample(new_task_list, len(new_task_list))
+        current_state_energy = self._energy(current_state)
+
+        # Initialize agent lists
+        agent_solution: List[List[AbstractTask]] = []
+        agent_task_index: List[int] = []
+
+        # Initialize the temperature list
+        # Start with a list that is twice as large
+        self._temperatures.reset()
+        cut = floor(self.temperature_list_length / 2)
+        for i in range(self.temperature_list_length * 2):
+
+            # Add temperature
+            neighbor_state = self._neighbor(current_state)
+            neighbor_state_energy = self._energy(neighbor_state)
+            temp = abs(current_state_energy - neighbor_state_energy)
+            self._temperatures.push(temp)
+
+            # Change states if the neighbor is better
+            if neighbor_state_energy < current_state_energy:
+                current_state = neighbor_state
+                current_state_energy = self._energy(current_state)
+
+        # Initialize agent_solution & agent_task arrays
+        for agent_id in range(self.population_size):
+            neighbor_state = self._neighbor(current_state)
+            agent_solution.append(neighbor_state)
+            agent_task_index.append(random.randint(0, len(neighbor_state)))
+
+        # Remove top and bottom of the temperature list to restore original size
+        # e.g. remove noise
+        self._temperatures.remove_bottom(cut)
+        self._temperatures.remove_top(cut)
+
+        if self._temperatures.peek() == 0:
+            raise RuntimeError("Unable to initialize temperatures. Please consider increasing population size.")
+
+        # Set Best Solution
+        self.best_solution = max(agent_solution, key=lambda x:  self.simulate_execution(x))
+
+        while not self._converged:
+
+            # Loop through agents
+            for agent_id in range(self.population_size):
+                current_state = agent_solution[agent_id]
+                temp = self._temperatures.peek()
+
+                num_accepted_worse_solutions = 0
+                total_temperatures = 0
+
+                # Calculate agent_mcl on each pass
+                agent_mcl: int = self._agent_mcl(self.pos, self.local_searches, len(tasklist), start_runtime, self.duration)
+
+                for i in range(agent_mcl):
+
+                    # update agent task index
+                    agent_task_index[agent_id] = (agent_task_index[agent_id] +1) % len(current_state)
+                    index = agent_task_index[agent_id]
+                    # Generate Candidate Solution
+                    neighbor_state = self._neighbor(current_state, agent_task_index[agent_id])
+
+                    # Calculate probability of accepting candidate
+                    current_state_energy = self._energy(current_state)
+                    neighbor_state_energy = self._energy(neighbor_state)
+                    prob = self._acceptance_probability(current_state_energy, neighbor_state_energy, temp)
+
+                    # Check if candidate is accepted
+                    rand = random.uniform(0,1)
+                    if prob > rand:
+
+                        # Update bad solution acceptance variables
+                        change = neighbor_state_energy - current_state_energy
+                        if change > 0:
+                            total_temperatures = total_temperatures + -change/log(rand)
+                            num_accepted_worse_solutions = num_accepted_worse_solutions + 1
+
+                        # Update Best Solution
+                        elif current_state_energy < self._energy(self.best_solution):
+                            self.best_solution = current_state
+
+                        current_state = neighbor_state
+
+                    # Update Temperature list
+                    if num_accepted_worse_solutions > 0:
+                        new_temp = total_temperatures / num_accepted_worse_solutions
+                        self._temperatures.pop()                # Remove old max_temp
+                        self._temperatures.push(new_temp)       # Add new temp
+
+                    # Termination by Duration
+                    # Break out of local searches
+                    if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
+                        return self.best_solution
+
+        return self.best_solution
+
+    def _neighbor(self, state, fixed_task_index = None):
+        """
+
+        :param state:
+        :param solution_space:
+        :return:
+        """
+        candidate1 = state[:]
+        candidate2 = state[:]
+        candidate3 = state[:]
+        candidate4 = state[:]
+
+        if fixed_task_index is None:
+            self.permute_schedule_by_blockinsert(candidate1)
+            self.permute_schedule_by_inverse(candidate2)
+            self.permute_schdule_by_swap(candidate3)
+            self.permute_schedule_by_transport(candidate4)
+        else:
+            self.permute_schedule_by_blockinsert(candidate1, fixed_task_index)
+            self.permute_schedule_by_inverse(candidate2, fixed_task_index)
+            self.permute_schdule_by_swap(candidate3, fixed_task_index)
+            self.permute_schedule_by_transport(candidate4, fixed_task_index)
+
+
+        candidates = [candidate1, candidate2, candidate3, candidate4]
+        # Choose a permutation method at random
+        best_candidate = max(candidates, key=lambda x: self.simulate_execution(x))
+
+        return best_candidate
+
+    def _agent_mcl(self, pos, mcl, tasklist_size: int, start_runtime, duration) -> int:
+        """
+
+        :param pos:
+        :param mcl:
+        :param tasklist_size:
+        :param start_runtime:
+        :param duration:
+        :return:
+        """
+        elapsed_time: timedelta = datetime.now() - start_runtime
+        #norm_elapsed_time: float = elapsed_time.total_seconds() / (duration * 60)
+        elapsed_time = elapsed_time.total_seconds()
+
+        MAX_START: float = pos * (duration * 60)
+        MAX_END: float = (1 - pos) * (duration * 60)
+
+        if elapsed_time < MAX_START:
+             weight: float = max( (elapsed_time / MAX_START) * 3, 1)
+             vmlc = ceil(weight * (mcl / 2))
+             print("early: " + str(vmlc))
+             return vmlc
+        elif elapsed_time > MAX_START and elapsed_time < MAX_END:
+            vmlc = ceil(3 * mcl/2)
+            print("max: " + str(vmlc))
+            return vmlc
+        else:   # Case elapsed_time > MAX_END
+            weight: float = max(((elapsed_time - MAX_END) / ((duration * 60) - MAX_END)) * 3, 1)
+            vmlc = ceil(weight * (mcl / 2))
+            print("late: " + str(vmlc))
+            return vmlc
+
+    def _algorithm_name(self):
+        return "Enhanced List-Based Simulated Annealing"
+
+class TemperatureQueue():
+    def __init__(self):
+        self._temperatures = []
+        heapq.heapify(self._temperatures)
+
+    def __len__(self):
+        return len(self._temperatures)
+
+    def reset(self):
+        self._temperatures = []
+        heapq.heapify(self._temperatures)
+
+    def pop(self):
+        temp = heapq.heappop(self._temperatures)
+        return -temp
+
+    def push(self, temp):
+        heapq.heappush(self._temperatures, -temp)
+
+    def remove_top(self, n: int):
+        self._temperatures.sort()
+        del self._temperatures[:n]
+        heapq.heapify(self._temperatures)
+
+    def remove_bottom(self, n: int):
+        self._temperatures.sort()
+        del self._temperatures[-n:]
+        heapq.heapify(self._temperatures)
+
+    def peek(self):
+        x = heapq.nsmallest(1, self._temperatures)
+        return -x[0]

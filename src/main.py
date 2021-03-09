@@ -115,11 +115,19 @@ def annealing_sch(args):
 
     sys._tasks = get_tasks(args)
 
-    sys.scheduler = SchedulerFactory.simulated_annealing(
-        start_time=start_time,
-        max_iterations=args.max_iterations,
-        generational_threshold=args.generational_threshold,
-    )
+    method: str = args.method
+    if method == "sa":
+        sys.scheduler = SchedulerFactory.simulated_annealing(
+            start_time=start_time,
+            max_iterations=args.max_iterations,
+            generational_threshold=args.generational_threshold,
+        )
+    elif method == "elbsa":
+        sys.scheduler = SchedulerFactory.enhanced_list_based_simulated_annealing(
+            start_time=start_time,
+            max_iterations=args.max_iterations,
+            generational_threshold=args.generational_threshold,
+        )
 
     # Check for end_time
     if args.end_time is not None:
@@ -246,7 +254,9 @@ parser_ant.set_defaults(func=ant_sch)
 
 
 # create the parser for the "annealing" command
+anneal_arg_choices = ["sa", "elbsa"]
 parser_annealing = subparsers.add_parser('annealing', help='Simulated Annealing help')
+parser_annealing.add_argument("-m", "--method", type=str, choices=anneal_arg_choices)
 parser_annealing.add_argument('--max_iterations', type=int, help='bar help', default=10000)
 parser_annealing.add_argument('--generational_threshold', type=int, help='bar help', default=50)
 parser_annealing.set_defaults(func=annealing_sch)
