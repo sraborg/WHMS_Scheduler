@@ -286,6 +286,7 @@ class AbstractScheduler(ABC):
         self._utopian_schedule_value = None
         self._flag_generate_sleep_tasks = True
         self._flag_generate_periodic_tasks = True
+        self._objective_cache = {}
 
     @property
     def optimization_horizon(self):
@@ -622,6 +623,24 @@ class AbstractScheduler(ABC):
         total = sum([t.wcet for t in schedule])
         return total
 
+    def _objective(self, schedule):
+        """
+
+        :param schedule:
+        :return:
+        """
+        key = tuple(schedule)
+        if key in self._objective_cache:
+            return self._objective_cache[key]
+
+        if not AbstractScheduler._validate_schedule(schedule):
+            self._objective_cache[key] = self.invalid_schedule_value
+        else:
+            self._objective_cache[key] = self.simulate_execution(schedule)
+
+        return self._objective_cache[key]
+
+
 class MetaHeuristicScheduler(AbstractScheduler):
 
     def __init__(self, **kwargs):
@@ -827,6 +846,50 @@ class MetaHeuristicScheduler(AbstractScheduler):
         insertion_index = random.randint(0, len(schedule) - 1)
         schedule[insertion_index:insertion_index] = block
 
+    @staticmethod
+    def partial_matched_crossover(parent_1: List, parent_2):
+
+        child_1 = parent_1[:]
+        child_2 = parent_2[:]
+        # Get Crossover Points
+        x1 = random.randint(0, len(child_1)-1)
+        x2 = random.randint(x1, len(child_1)-1)
+
+        # Create map
+        pmx_map = {}
+        for i in range (x1, x2):
+            pmx_map[child_1[i]] = child_2[i]
+            pmx_map[child_2[i]] = child_1[i]
+
+        # Swap middle
+        p1_mid = child_2[x1:x2]
+        p2_mid = child_1[x1:x2]
+        del child_1[x1:x2]
+        del child_2[x1:x2]
+
+        child_1[x1:x1] = p1_mid
+        child_2[x1:x1] = p2_mid
+
+        # Swap values in first segment using map
+        for i in range(x1):
+
+            if child_1[i] in pmx_map:
+                child_1[i] = pmx_map[child_1[i]]
+
+            if child_2[i] in pmx_map:
+                child_2[i] = pmx_map[child_2[i]]
+
+                # Swap values in first segment using map
+                for i in range(x2, len(parent_1)):
+
+                    if child_2[i] in pmx_map:
+                        child_2[i] = pmx_map[child_2[i]]
+
+                    if child_2[i] in pmx_map:
+                        child_2[i] = pmx_map[child_2[i]]
+
+        return child_1, child_2
+
     def get_average_schedule_value_from_population(self, population: List[List[AbstractTask]]):
         total_value = sum(list(map(lambda x: self.simulate_execution(x), population)))
         average = total_value / len(population)
@@ -1028,22 +1091,18 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
         super().__init__(**kwargs)
         self.num_populations = kwargs.get("num_populations", 50)
         self.population_size = kwargs.get("population_size", 20)
-        self.breeding_percentage = kwargs.get("breeding_percentage", 0.05)
-        #self.mutation_rate = kwargs.get("mutation_rate", 0.01)
-        #self.elitism = kwargs.get("elitism", True)
-        #self.max_generations = self.max_iterations
-        #self._tasks = None
+        self.breeding_percentage = kwargs.get("breeding_percentage", 0.25)
 
     def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
+        """ Generates a schedule for a list of tasks
+
+        :param tasklist: a list of tasks
+        :param interval:
+        :return: a schedule
         """
 
-        :param tasklist:
-        :param interval:
-        :return:
-        """
         print("Generating Schedule Using " + self._algorithm_name() + " Algorithm")
         start_runtime = datetime.now()
-        #new_task_list = self.generate_random_schedule(tasklist, interval) #self._initialize_tasklist(tasklist, interval)
 
         # Generation initial populations
         populations = []
@@ -1053,7 +1112,7 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
                 c = self.generate_random_schedule(tasklist, interval)
                 populations[i].append(c)
 
-        #i = 1
+        i = 1
         converged = False
 
         current_best_schedule = []
@@ -1065,7 +1124,6 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
 
             new_populations = []
             for population in populations:
-                mutation_rate = 0.01
 
                 # Selection
                 breeding_sample = self._selection(population)
@@ -1076,10 +1134,10 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
                 # Mutation
                 self._mutation(population, children)
 
-                # Update Population (Check for case where no children were created
+                # Configure Next generation
                 if len(children) != 0:
                     next_generation = population[:-len(children)] + children
-                else:
+                else: # Handle fringe case where no children were created
                     next_generation = population
 
                 new_populations.append(next_generation)
@@ -1098,10 +1156,12 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
             if self.simulate_execution(iterative_best_schedule) > current_best_schedule_value:
                 current_best_schedule = iterative_best_schedule
 
+            for i in iterative_best_schedules:
+                print(self._fitness(i))
+
             # Migration
             #for i in range(int(len(new_populations)/2)):
             #    self._migrate(new_populations[i], new_populations[len(new_populations)-1-i])
-
 
             # Update Population
             populations = new_populations
@@ -1112,29 +1172,20 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
 
         return current_best_schedule
 
-    def _fitness(self, schedule, tasklist=None):
+    def _fitness(self, schedule):
+        """ Alias for objective method
+
+        :param schedule: a schedule to evaluate
+        :return: returns a value
         """
 
-        :param schedule:
-        :param tasklist:
-        :return:
-        """
-        if tasklist is None:
-            tasklist = self._tasks
+        return self._objective(schedule)
 
-        if not AbstractScheduler._validate_schedule(schedule):
-            return self.invalid_schedule_value
-        #elif not GeneticScheduler._all_tasks_present(tasklist, schedule):
-            #return self.invalid_schedule_value
-        else:
-            return self.simulate_execution(schedule)
+    def _selection(self, population):
+        """ Selects a subset of the population for breeding
 
-    def _selection(self, population, **kwargs):
-        """
-
-        :param population:
-        :param kwargs:
-        :return:
+        :param population: The population to select from
+        :return: The breeding sample
         """
         population.sort(key= lambda x: self._fitness(x), reverse=True)
         cutoff = ceil(len(population) * self.breeding_percentage)
@@ -1153,13 +1204,23 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
 
             crossover_rate = self._get_adaptive_crossover_rate(population, individual)
 
-
             if random.uniform(0,1) < crossover_rate:
                 mate = random.choice(breeding_sample)
+                family = []
 
-                crossover_point = random.randint(0, len(individual))
-                child = individual[:crossover_point] + mate[crossover_point:]
-                children.append(child)
+                c1, c2 = self.partial_matched_crossover(individual, mate)
+
+                #crossover_point = random.randint(0, len(individual))
+                #child = individual[:crossover_point] + mate[crossover_point:]
+                family.append(individual)
+                family.append(mate)
+                family.append(c1)
+                family.append(c2)
+
+                family.sort(key= lambda x : self._fitness(x), reverse=True)
+
+                for i in range(2):
+                    children.append(family[2])
 
         return children
 
@@ -1175,6 +1236,42 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
                 if random.random() < mutation_rate:
                     self.permute_schdule_by_swap(child, i)
 
+    def _algorithm_name(self):
+        return "New Genetic Algorithm"
+
+    def _get_adaptive_crossover_rate(self, population, individual):
+        """ Adaptively generates a crossover rate
+
+        :param population: The population the individual comes from
+        :param individual: The individual (schedule)
+        :return: a crossover rate
+        """
+
+        max_value = self.get_max_schedule_value_from_population(population)
+        average = self.get_average_schedule_value_from_population(population)
+        value = self._fitness(individual)
+        if value >= average:
+            return (max_value - value)/(max_value - average)
+        else:
+            return 1
+
+    def _get_adaptive_mutation_rate(self, population, individual):
+        """ Adaptively generates a mutation rate
+
+        :param population: The population the individual comes from
+        :param individual: The individual (schedule)
+        :return: a mutation rate
+        """
+
+        max_value = self.get_max_schedule_value_from_population(population)
+        average = self.get_average_schedule_value_from_population(population)
+        value = self._fitness(individual)
+        if value >= average:
+            return 0.5 * (max_value - value)/(max_value -average)
+        else:
+            return 0.5
+
+    '''
     def _evolutionary_rate(self, population):
         total_value = sum(list(map(lambda x: self.simulate_execution(x), population)))
         average = total_value / len(population)
@@ -1209,27 +1306,7 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
         population_1 = l1 + h2
         population_2 = l2 + h1
 
-    def _algorithm_name(self):
-        return "New Genetic Algorithm"
-
-    def _get_adaptive_crossover_rate(self, population, individual):
-        max_value = self.get_max_schedule_value_from_population(population)
-        average = self.get_average_schedule_value_from_population(population)
-        value = self.simulate_execution(individual)
-        if value >= average:
-            return (max_value - value)/(max_value -average)
-        else:
-            return 1
-
-    def _get_adaptive_mutation_rate(self, population, individual):
-        max_value = self.get_max_schedule_value_from_population(population)
-        average = self.get_average_schedule_value_from_population(population)
-        value = self.simulate_execution(individual)
-        if value >= average:
-            return 0.5 * (max_value - value)/(max_value -average)
-        else:
-            return 0.5
-
+    '''
 class AntScheduler(MetaHeuristicScheduler):
 
     ANT_SYSTEM = 0
@@ -2177,6 +2254,7 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
 
     def _algorithm_name(self):
         return "Enhanced List-Based Simulated Annealing"
+
 
 class TemperatureQueue():
     def __init__(self):

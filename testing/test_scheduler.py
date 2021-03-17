@@ -451,5 +451,17 @@ class TestScheduler(unittest.TestCase):
         schedule = sch.generate_random_schedule(tasklist, 60)
         self.assertTrue(sch._validate_schedule(schedule))
 
+    def test_PMX(self):
+
+        p1 = UserTask.generate_random_tasks(10)
+        p2 = p1[:]
+        random.shuffle(p2)
+
+        c1, c2 = MetaHeuristicScheduler.partial_matched_crossover(p1, p2)
+
+
+        self.assertTrue(MetaHeuristicScheduler._no_duplicate_tasks(c1))
+        self.assertTrue(MetaHeuristicScheduler._no_duplicate_tasks(c2))
+
 if __name__ == '__main__':
     unittest.main()

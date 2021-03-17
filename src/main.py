@@ -38,13 +38,9 @@ def genetic_sch(args):
             start_time=start_time,
             population_size=args.population_size,
             breeding_percentage=args.breeding_percentage,
-            mutation_rate=args.mutation_rate,
-            elitism=args.elitism,
-            max_iterations=args.max_iterations,
-            threshold=args.threshold,
-            generational_threshold=args.generational_threshold,
             verbose=args.verbose,
             invalid_schedule_value=args.invalid_schedule_value,
+            duration=args.duration
         )
     # Check for end_time
     if args.end_time is not None:
@@ -241,7 +237,7 @@ parser.add_argument('--end_time', type=float, help="")
 gen_arg_choices = ["ga", "nga"]
 parser_genetic = subparsers.add_parser('genetic', help='genetic help')
 parser_genetic.add_argument("-m", "--method", type=str, choices=gen_arg_choices)
-parser_genetic.add_argument('--population_size', type=int, help='bar help', default=50)
+parser_genetic.add_argument('--population_size', type=int, help='bar help', default=20)
 parser_genetic.add_argument('--breeding_percentage', type=float, help='bar help', default=0.2)
 parser_genetic.add_argument('--mutation_rate', type=float, help='bar help', default=0.05)
 parser_genetic.add_argument('--max_iterations', type=int, help='bar help', default=10)
