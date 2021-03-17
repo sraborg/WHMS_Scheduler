@@ -9,6 +9,7 @@ import sympy
 import random
 import copy
 import heapq
+from functools import reduce
 
 
 class SchedulerFactory:
@@ -210,6 +211,50 @@ class SchedulerFactory:
             **kwargs)
 
     @classmethod
+    def new_genetic_scheduler(cls,
+                          population_size=5000,
+                          breeding_percentage=0.05,
+                          mutation_rate=0.01,
+                          max_iterations=100,
+                          threshold=0.01,
+                          generational_threshold=10,
+                          start_time=None,
+                          verbose=False,
+                          invalid_schedule_value=-1000.0,
+                          elitism=True,
+                          **kwargs):
+        """
+
+        :param population_size:
+        :param breeding_percentage:
+        :param mutation_rate:
+        :param max_iterations:
+        :param threshold:
+        :param generational_threshold:
+        :param start_time:
+        :param verbose:
+        :param invalid_schedule_value:
+        :param elitism:
+        :param kwargs:
+        :return:
+        """
+        if start_time is None:
+            start_time = datetime.now()
+
+        return NewGeneticScheduler(
+            population_size=population_size,
+            breeding_percentage=breeding_percentage,
+            mutation_rate=mutation_rate,
+            max_iterations=max_iterations,
+            threshold=threshold,
+            generational_threshold=generational_threshold,
+            start_time=start_time,
+            verbose=verbose,
+            invalid_schedule_value=invalid_schedule_value,
+            elitism=elitism,
+            **kwargs)
+
+    @classmethod
     def random_scheduler(cls,
                          sample_size=1000,
                          start_time = None,
@@ -327,6 +372,12 @@ class AbstractScheduler(ABC):
             sleep_tasks.append(SleepTask(wcet=interval))
 
         return sleep_tasks
+
+    def _calculate_num_sleep_tasks_need(self, tasklist, interval):
+        # Calculate the number of sleep tasks needed
+        total_wcet = sum(task.wcet for task in tasklist)
+        dif = self.optimization_horizon.total_seconds() - total_wcet
+        return ceil(dif / interval)
 
     def generate_periodic_tasks(self, tasklist: List[AbstractTask]):
         """  Generates all possible periodic tasks that can be executed within planning horizon
@@ -474,7 +525,10 @@ class AbstractScheduler(ABC):
         else:
             time = start
 
-        key = (tuple(tasklist), start)
+        if not AbstractScheduler._validate_schedule(tasklist):
+            return self.invalid_schedule_value
+
+        key = (tuple(tasklist), time)
         if key in self._cached_schedule_values.keys():
             return self._cached_schedule_values[key]
         else:
@@ -491,6 +545,9 @@ class AbstractScheduler(ABC):
 
             self._cached_schedule_values[key] = total_value
 
+        if self._cached_schedule_values[key] > self.utopian_schedule_value(tasklist):
+            print(str(self._cached_schedule_values[key]) + " | " + self.utopian_schedule_value(tasklist))
+            raise AssertionError("Current Value exceeds Utopian Value")
         return self._cached_schedule_values[key]
 
     @staticmethod
@@ -527,6 +584,43 @@ class AbstractScheduler(ABC):
 
         return weighted_value
 
+    def generate_random_schedule(self, tasklist, interval):
+        """
+
+        :param tasklist:
+        :param interval:
+        :return:
+        """
+        independent_tasks = []
+        dependent_tasks = []
+
+        # Get independent task
+        for task in tasklist:
+            if task.has_dependencies():
+                dependent_tasks.append(task)
+            else:
+                independent_tasks.append(task)
+
+        # Safely add dependent Tasks
+        while len(dependent_tasks) != 0:
+            task = random.choice(dependent_tasks)
+            dependencies = task.get_dependencies()
+            if all([(d in independent_tasks) for d in dependencies]):
+                independent_tasks.append(task)
+                dependent_tasks.remove(task)
+
+        new_tasklist = independent_tasks + self.generate_periodic_tasks(independent_tasks)
+
+        for i in range(self._calculate_num_sleep_tasks_need(new_tasklist, interval)):
+            index = random.randint(0, len(independent_tasks)-1)
+            new_tasklist.insert(index, SleepTask(wcet=interval))
+
+        return new_tasklist
+
+    @staticmethod
+    def calulate_total_schedule_execution_time(schedule):
+        total = sum([t.wcet for t in schedule])
+        return total
 
 class MetaHeuristicScheduler(AbstractScheduler):
 
@@ -733,6 +827,13 @@ class MetaHeuristicScheduler(AbstractScheduler):
         insertion_index = random.randint(0, len(schedule) - 1)
         schedule[insertion_index:insertion_index] = block
 
+    def get_average_schedule_value_from_population(self, population: List[List[AbstractTask]]):
+        total_value = sum(list(map(lambda x: self.simulate_execution(x), population)))
+        average = total_value / len(population)
+        return average
+
+    def get_max_schedule_value_from_population(self, population: List[List[AbstractTask]]):
+        return max([self.simulate_execution(i) for i in population])
 
 class RandomScheduler(AbstractScheduler):
 
@@ -854,8 +955,8 @@ class GeneticScheduler(MetaHeuristicScheduler):
 
         if not AbstractScheduler._validate_schedule(schedule):
             return self.invalid_schedule_value
-        elif not GeneticScheduler._all_tasks_present(tasklist, schedule):
-            return self.invalid_schedule_value
+        #elif not GeneticScheduler._all_tasks_present(tasklist, schedule):
+            #return self.invalid_schedule_value
         else:
             return self.simulate_execution(schedule)
 
@@ -914,6 +1015,220 @@ class GeneticScheduler(MetaHeuristicScheduler):
 
         return population
 
+
+class NewGeneticScheduler(MetaHeuristicScheduler):
+    """
+
+    """
+    def __init__(self, **kwargs):
+        """
+
+        :param kwargs:
+        """
+        super().__init__(**kwargs)
+        self.num_populations = kwargs.get("num_populations", 50)
+        self.population_size = kwargs.get("population_size", 20)
+        self.breeding_percentage = kwargs.get("breeding_percentage", 0.05)
+        #self.mutation_rate = kwargs.get("mutation_rate", 0.01)
+        #self.elitism = kwargs.get("elitism", True)
+        #self.max_generations = self.max_iterations
+        #self._tasks = None
+
+    def schedule_tasks(self, tasklist: List[AbstractTask], interval) -> List[AbstractTask]:
+        """
+
+        :param tasklist:
+        :param interval:
+        :return:
+        """
+        print("Generating Schedule Using " + self._algorithm_name() + " Algorithm")
+        start_runtime = datetime.now()
+        #new_task_list = self.generate_random_schedule(tasklist, interval) #self._initialize_tasklist(tasklist, interval)
+
+        # Generation initial populations
+        populations = []
+        for i in range(self.num_populations):
+            populations.append([])
+            for chromosome in range(self.population_size):
+                c = self.generate_random_schedule(tasklist, interval)
+                populations[i].append(c)
+
+        #i = 1
+        converged = False
+
+        current_best_schedule = []
+        current_best_schedule_value = float('-inf')
+
+        while not converged:
+            if self.verbose:
+                print("Processing Generation " + str(i))
+
+            new_populations = []
+            for population in populations:
+                mutation_rate = 0.01
+
+                # Selection
+                breeding_sample = self._selection(population)
+
+                # Crossover
+                children = self._crossover(population, breeding_sample)
+
+                # Mutation
+                self._mutation(population, children)
+
+                # Update Population (Check for case where no children were created
+                if len(children) != 0:
+                    next_generation = population[:-len(children)] + children
+                else:
+                    next_generation = population
+
+                new_populations.append(next_generation)
+
+                # Termination by Duration
+                if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
+                    break
+
+            # Sort Each Chromosome in Each Populations by fitness
+            for population in new_populations:
+                population.sort(key=self.simulate_execution, reverse=True)
+
+            # update best schedule
+            iterative_best_schedules = list(map(lambda x: x[0], new_populations))
+            iterative_best_schedule = max(iterative_best_schedules, key= lambda x: self.simulate_execution(x))
+            if self.simulate_execution(iterative_best_schedule) > current_best_schedule_value:
+                current_best_schedule = iterative_best_schedule
+
+            # Migration
+            #for i in range(int(len(new_populations)/2)):
+            #    self._migrate(new_populations[i], new_populations[len(new_populations)-1-i])
+
+
+            # Update Population
+            populations = new_populations
+
+            # Termination by Duration
+            if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
+                break
+
+        return current_best_schedule
+
+    def _fitness(self, schedule, tasklist=None):
+        """
+
+        :param schedule:
+        :param tasklist:
+        :return:
+        """
+        if tasklist is None:
+            tasklist = self._tasks
+
+        if not AbstractScheduler._validate_schedule(schedule):
+            return self.invalid_schedule_value
+        #elif not GeneticScheduler._all_tasks_present(tasklist, schedule):
+            #return self.invalid_schedule_value
+        else:
+            return self.simulate_execution(schedule)
+
+    def _selection(self, population, **kwargs):
+        """
+
+        :param population:
+        :param kwargs:
+        :return:
+        """
+        population.sort(key= lambda x: self._fitness(x), reverse=True)
+        cutoff = ceil(len(population) * self.breeding_percentage)
+        return population[:cutoff]
+
+    def _crossover(self, population, breeding_sample):
+        """ Creates the next generation of schedules. If "elitism is set", parents are carried over to next generation.
+
+        :param parents:
+        :param population_size:
+        :return:
+        """
+        children = []
+
+        for individual in breeding_sample:
+
+            crossover_rate = self._get_adaptive_crossover_rate(population, individual)
+
+
+            if random.uniform(0,1) < crossover_rate:
+                mate = random.choice(breeding_sample)
+
+                crossover_point = random.randint(0, len(individual))
+                child = individual[:crossover_point] + mate[crossover_point:]
+                children.append(child)
+
+        return children
+
+    def _mutation(self, population, children):
+        """ Probabilistically "mutates" each task in the schedule in place based on the mutation rate.
+        When a mutation occurs the task position is swapped with another task in the schedule (at random)
+
+        :param population: The population (schedule) to mutate
+        """
+        for child in children:
+            mutation_rate = self._get_adaptive_mutation_rate(population, child)
+            for i, task in enumerate(child):
+                if random.random() < mutation_rate:
+                    self.permute_schdule_by_swap(child, i)
+
+    def _evolutionary_rate(self, population):
+        total_value = sum(list(map(lambda x: self.simulate_execution(x), population)))
+        average = total_value / len(population)
+        best = self.simulate_execution(population[0])
+        return (best - average)/average
+
+    def _segregate(self, population):
+        """
+
+        :param population: a population whose individuals are sorted in decending order by their fitness value
+        :return:
+        """
+        total_value = sum(list(map(lambda x: self.simulate_execution(x), population)))
+        average = total_value / len(population)
+
+        midpoint = 1
+        for individual in population:
+            if self.simulate_execution(individual) > average:
+                midpoint = midpoint+1
+            else:
+                break
+
+        upper = population[:midpoint+1]
+        lower = population[midpoint+1:]
+
+        return lower, upper
+
+    def _migrate(self, population_1, population_2):
+        l1, h1 = self._segregate(population_1)
+        l2, h2 = self._segregate(population_2)
+
+        population_1 = l1 + h2
+        population_2 = l2 + h1
+
+    def _algorithm_name(self):
+        return "New Genetic Algorithm"
+
+    def _get_adaptive_crossover_rate(self, population, individual):
+        max_value = self.get_max_schedule_value_from_population(population)
+        average = self.get_average_schedule_value_from_population(population)
+        value = self.simulate_execution(individual)
+        if value >= average:
+            return (max_value - value)/(max_value -average)
+        else:
+            return 1
+
+    def _get_adaptive_mutation_rate(self, population, individual):
+        max_value = self.get_max_schedule_value_from_population(population)
+        average = self.get_average_schedule_value_from_population(population)
+        value = self.simulate_execution(individual)
+        if value >= average:
+            return 0.5 * (max_value - value)/(max_value -average)
+        else:
+            return 0.5
 
 class AntScheduler(MetaHeuristicScheduler):
 
@@ -1551,10 +1866,10 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         start_runtime = datetime.now()
 
         self._converged = False
-        new_task_list = self._initialize_tasklist(tasklist, interval)
+        #new_task_list = self._initialize_tasklist(tasklist, interval)
 
         # Set Starting State
-        current_state = random.sample(new_task_list, len(new_task_list))
+        current_state = self.generate_random_schedule(tasklist, interval)#random.sample(new_task_list, len(new_task_list))
 
         # Set Best Solution
         self.best_solution = current_state

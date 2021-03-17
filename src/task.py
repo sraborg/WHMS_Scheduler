@@ -221,10 +221,18 @@ class AbstractTask(ABC):
 
             # Setup Analysis
             analysis_types = [
-                "BLOOD_PRESSURE",
-                "HEART_RATE"
+                AnalysisFactory.body_temperature_analysis,
+                AnalysisFactory.blood_glucose_analysis,
+                AnalysisFactory.blood_pressure_analysis,
+                AnalysisFactory.electrocardiogram_analysis,
+                AnalysisFactory.electroencephalography_analysis,
+                AnalysisFactory.exercise_analysis,
+                AnalysisFactory.heart_rate_analysis,
+                AnalysisFactory.motion_analysis,
+                AnalysisFactory.respiratory_rate_analysis,
+                AnalysisFactory.stress_analysis,
             ]
-            t.analysis = AnalysisFactory.get_analysis(random.choice(analysis_types))
+            t.analysis = random.choice(analysis_types)()
 
             names = [
                 "Dr Patterson",
@@ -242,9 +250,11 @@ class AbstractTask(ABC):
             soft_deadline = datetime.fromtimestamp(random.uniform(earliest_start.timestamp(), end.timestamp()))
             hard_deadline = datetime.fromtimestamp(random.uniform(soft_deadline.timestamp(), end.timestamp()))
 
+            '''
             t.earliest_start = earliest_start
             t.soft_deadline = soft_deadline
             t.hard_deadline = hard_deadline
+            '''
 
             t.values = [
                 (earliest_start.timestamp(), 0),

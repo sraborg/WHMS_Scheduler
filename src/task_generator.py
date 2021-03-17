@@ -6,11 +6,11 @@ from task import UserTask
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-q', '--quantity', type=int, help="", required=True)
-    parser.add_argument('-e', '--export_tasklist',  type=str, help='export tasklist', default="generated_tasks.json")
+    parser.add_argument('-e', '--export-tasklist',  type=str, help='export tasklist', default="generated_tasks.json")
     parser.add_argument('-d', "--dependencies", type=bool, help="", default=True)
-    parser.add_argument('--start_time', type=float, help="", required=True)
-    parser.add_argument('--end_time', type=float, help="True")
-    parser.add_argument('--max_value', type=int, help="")
+    parser.add_argument('--start-time', type=float, help="", required=True)
+    parser.add_argument('--end-time', type=float, help="True")
+    parser.add_argument('--max-value', type=int, help="", default=10)
 
     args = parser.parse_args()
 

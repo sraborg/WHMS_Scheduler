@@ -19,20 +19,33 @@ def genetic_sch(args):
     start_time = get_start_time(args)
     sys._tasks = get_tasks(args)
 
-    sys.set_scheduler("genetic")
-    sys.scheduler = SchedulerFactory.genetic_scheduler(
-        start_time=start_time,
-        population_size=args.population_size,
-        breeding_percentage=args.breeding_percentage,
-        mutation_rate=args.mutation_rate,
-        elitism=args.elitism,
-        max_iterations=args.max_iterations,
-        threshold=args.threshold,
-        generational_threshold=args.generational_threshold,
-        verbose=args.verbose,
-        invalid_schedule_value=args.invalid_schedule_value,
-    )
-
+    method: str = args.method
+    if method == "ga":
+        sys.scheduler = SchedulerFactory.genetic_scheduler(
+            start_time=start_time,
+            population_size=args.population_size,
+            breeding_percentage=args.breeding_percentage,
+            mutation_rate=args.mutation_rate,
+            elitism=args.elitism,
+            max_iterations=args.max_iterations,
+            threshold=args.threshold,
+            generational_threshold=args.generational_threshold,
+            verbose=args.verbose,
+            invalid_schedule_value=args.invalid_schedule_value,
+        )
+    elif method == "nga":
+        sys.scheduler = SchedulerFactory.new_genetic_scheduler(
+            start_time=start_time,
+            population_size=args.population_size,
+            breeding_percentage=args.breeding_percentage,
+            mutation_rate=args.mutation_rate,
+            elitism=args.elitism,
+            max_iterations=args.max_iterations,
+            threshold=args.threshold,
+            generational_threshold=args.generational_threshold,
+            verbose=args.verbose,
+            invalid_schedule_value=args.invalid_schedule_value,
+        )
     # Check for end_time
     if args.end_time is not None:
         if args.end_time <= args.start_time:
@@ -135,8 +148,8 @@ def annealing_sch(args):
             raise Exception("Endtime must be later than start time")
         sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
 
-    sys.schedule_tasks()
-    sys.scheduler._tasks[0].nu.shift_deadlines(10)
+    #sys.schedule_tasks()
+    #sys.scheduler._tasks[0].nu.shift_deadlines(10)
     anneal_sch = sys._schedule
     total_anneal_value = sys.simulate_schedule()
     weighted_anneal_value = sys.scheduler.weighted_schedule_value(anneal_sch, total_anneal_value)
@@ -225,8 +238,10 @@ parser.add_argument('--end_time', type=float, help="")
 #parser.add_argument("-g", "--generate_tasks", type=int, help="Generates Random Tasks")
 
 # create the parser for the "genetic" command
+gen_arg_choices = ["ga", "nga"]
 parser_genetic = subparsers.add_parser('genetic', help='genetic help')
-parser_genetic.add_argument('--population_size', type=int, help='bar help', default=500)
+parser_genetic.add_argument("-m", "--method", type=str, choices=gen_arg_choices)
+parser_genetic.add_argument('--population_size', type=int, help='bar help', default=50)
 parser_genetic.add_argument('--breeding_percentage', type=float, help='bar help', default=0.2)
 parser_genetic.add_argument('--mutation_rate', type=float, help='bar help', default=0.05)
 parser_genetic.add_argument('--max_iterations', type=int, help='bar help', default=10)

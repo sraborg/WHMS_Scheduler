@@ -13,7 +13,7 @@ class AbstractAnalysis(ABC):
     def execute(self):
         pass
 
-    @abstractmethod
+    @staticmethod
     def name(self) -> str:
         pass
 
@@ -42,13 +42,15 @@ class DummyAnalysis(AbstractAnalysis):
         sleep(execution_time)
         print("Completed Task " + str(id(self)) + " after " + str(execution_time) + " seconds")
 
+    @staticmethod
     def name(self):
         return "DUMMY"
 
 
 class MedicalAnalysis(AbstractAnalysis):
 
-    def name(self) -> str:
+    @staticmethod
+    def name() -> str:
         pass
 
     def execute(self):
@@ -63,18 +65,21 @@ class HeartRateAnalysis(MedicalAnalysis):
         self.wcet = 120
         self.wcbu = 1
 
-    def name(self) -> str:
-        return "HEART_RATE"
+    @staticmethod
+    def name() -> str:
+        return "Heart Rate"
 
 
 class BloodPressureAnalysis(MedicalAnalysis):
-    def name(self) -> str:
-        return "BLOOD_PRESSURE"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.wcet = 60
         self.wcbu = 1
+
+    @staticmethod
+    def name() -> str:
+        return "Blood Pressure"
 
 
 class RespiratoryRateAnalysis(MedicalAnalysis):
@@ -83,7 +88,8 @@ class RespiratoryRateAnalysis(MedicalAnalysis):
         self.wcet = 300
         self.wcbu = 1
 
-    def name(self) -> str:
+    @staticmethod
+    def name() -> str:
         return "Respiratory Rate"
 
 
@@ -93,7 +99,8 @@ class ElectrocardiogramAnalysis(MedicalAnalysis):
         self.wcet = 10
         self.wcbu = 1
 
-    def name(self) -> str:
+    @staticmethod
+    def name() -> str:
         return "Electrocardiogram (ECG)"
 
 
@@ -103,7 +110,8 @@ class Electroencephalography(MedicalAnalysis):
         self.wcet = 1800
         self.wcbu = 1
 
-    def name(self) -> str:
+    @staticmethod
+    def name() -> str:
         return "Electroencephalography (EEG)"
 
 
@@ -113,7 +121,8 @@ class BodyTemperatureAnalysis(MedicalAnalysis):
         self.wcet = 15
         self.wcbu = 1
 
-    def name(self) -> str:
+    @staticmethod
+    def name() -> str:
         return "Body Temperature"
 
 
@@ -123,7 +132,8 @@ class MotionAnalysis(MedicalAnalysis):
         self.wcet = 600
         self.wcbu = 1
 
-    def name(self) -> str:
+    @staticmethod
+    def name() -> str:
         return "Motion"
 
 
@@ -133,7 +143,8 @@ class BloodGlucoseAnalysis(MedicalAnalysis):
         self.wcet = 20
         self.wcbu = 1
 
-    def name(self) -> str:
+    @staticmethod
+    def name() -> str:
         return "Blood Glucose"
 
 
@@ -143,7 +154,8 @@ class ExerciseAnalysis(MedicalAnalysis):
         self.wcet = 1200
         self.wcbu = 1
 
-    def name(self) -> str:
+    @staticmethod
+    def name() -> str:
         return "Exercise"
 
 
@@ -153,7 +165,8 @@ class StressAnalysis(MedicalAnalysis):
         self.wcet = 480
         self.wcbu = 1
 
-    def name(self) -> str:
+    @staticmethod
+    def name() -> str:
         return "Stress"
 
 
@@ -173,7 +186,8 @@ class SleepAnalysis(AbstractAnalysis):
         print("Waiting... ")
         sleep(self.wcet)
 
-    def name(self):
+    @staticmethod
+    def name():
         return "SLEEP"
 
 
@@ -187,10 +201,26 @@ class AnalysisFactory:
             analysis = DummyAnalysis()
         elif analysis_type.upper() == "SLEEP":
             analysis = SleepAnalysis()
-        elif analysis_type.upper() == "HEART_RATE":
-            analysis = HeartRateAnalysis()
-        elif analysis_type.upper() == "BLOOD_PRESSURE":
+        elif analysis_type.upper() == BodyTemperatureAnalysis.name().upper():
+            analysis = BodyTemperatureAnalysis()
+        elif analysis_type.upper() == BloodGlucoseAnalysis.name().upper():
+            analysis = BloodGlucoseAnalysis()
+        elif analysis_type.upper() == BloodPressureAnalysis.name().upper():
             analysis = BloodPressureAnalysis()
+        elif analysis_type.upper() == ElectrocardiogramAnalysis.name().upper():
+            analysis = ElectrocardiogramAnalysis()
+        elif analysis_type.upper() == Electroencephalography.name().upper():
+            analysis = Electroencephalography()
+        elif analysis_type.upper() == ExerciseAnalysis.name().upper():
+            analysis = ExerciseAnalysis()
+        elif analysis_type.upper() == HeartRateAnalysis.name().upper():
+            analysis = HeartRateAnalysis()
+        elif analysis_type.upper() == MotionAnalysis.name().upper():
+            analysis = MotionAnalysis()
+        elif analysis_type.upper() == RespiratoryRateAnalysis().name().upper():
+            analysis = RespiratoryRateAnalysis()
+        elif analysis_type.upper() == StressAnalysis.name().upper():
+            analysis = StressAnalysis()
         else:
             raise Exception("Invalid Analysis Type")
 

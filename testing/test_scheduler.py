@@ -3,8 +3,8 @@ from system import System
 from datetime import datetime, timedelta
 from src.scheduler import *
 from src.task import SleepTask
-from src.nu import NuFactory
-from src.analysis import DummyAnalysis
+from src.nu import NuFactory, NuConstant
+from src.analysis import DummyAnalysis, MedicalAnalysis
 
 
 class TestScheduler(unittest.TestCase):
@@ -416,6 +416,40 @@ class TestScheduler(unittest.TestCase):
         self.assertEqual(p1, 82)
         p2 = tq.peek()
         self.assertEqual(p1, p2)
+
+
+    def test_generate_random_schedule(self):
+        tasklist = []
+
+        for i in range(20):
+            tasklist.append(UserTask())
+
+        for i in range(5):
+            task = UserTask()
+            d1 = random.choice(tasklist)
+            d2 = random.choice(tasklist)
+
+            task.add_dependency(d1)
+            task.add_dependency(d2)
+            tasklist.append(task)
+
+        for task in tasklist:
+            task.analysis = MedicalAnalysis()
+            task.analysis.wcet = 20
+            task.nu = NuConstant()
+            task.nu.value = 1
+
+
+        start = datetime.now()
+
+        tasklist[0].periodicity = 80
+
+        sch = MetaHeuristicScheduler()
+        sch.start_time = start
+        sch.end_time = start + timedelta(minutes=30)
+
+        schedule = sch.generate_random_schedule(tasklist, 60)
+        self.assertTrue(sch._validate_schedule(schedule))
 
 if __name__ == '__main__':
     unittest.main()
