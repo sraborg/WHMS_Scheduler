@@ -85,7 +85,7 @@ class AbstractTask(ABC):
 
     def value(self, **kwargs):
         if "timestamp" in kwargs:
-            timestamp = kwargs.get("timestamp")
+            timestamp = kwargs.get("timestamp").timestamp()
         else:
             timestamp = datetime.now().timestamp()
         return self.nu.eval(timestamp)
@@ -164,7 +164,8 @@ class AbstractTask(ABC):
                         task.add_dependency(tasks[index])
 
                 tasks.append(task)
-        return tasks
+
+        return Schedule(tasks)
 
     @staticmethod
     def save_tasks(path, tasklist):
@@ -361,7 +362,7 @@ class SleepTask(SystemTask):
         self.nu = NuConstant(CONSTANT_VALUE=value)
 
         # Setup SleepAnalysis
-        wcet = kwargs.get("wcet", 5)
+        wcet = kwargs.get("wcet", timedelta(5))
         self.analysis = SleepAnalysis(wcet=wcet)
 
     def execute(self):
@@ -551,3 +552,59 @@ class AntTask(TaskDecorator):
     def accept(self, ant, timestamp):
         self.visited_by.append(ant)
         ant.visit(self, timestamp)
+
+
+class Schedule(list):
+
+    def __init__(self, tasks:List[AbstractTask]=None):
+        super().__init__()
+        self._dependent_tasks = []
+        self._independent_tasks = []
+
+        if tasks is not None:
+            for task in tasks:
+                self.append(task)
+
+    def append(self, task: AbstractTask) -> None:
+        if not isinstance(task, AbstractTask):
+            raise TypeError("Only Tasks can be added to a schedule")
+
+        # Track Dependencies
+        if task.has_dependencies():
+            self._dependent_tasks.append(task)
+        else:
+            self._independent_tasks.append(task)
+
+        super().append(task)
+
+    def insert(self, __index: int, task: AbstractTask) -> None:
+        if not isinstance(task, AbstractTask):
+            raise TypeError("Only Tasks can be added to a schedule")
+
+        # Track Dependencies
+        if task.has_dependencies():
+            self._dependent_tasks.append(task)
+        else:
+            self._independent_tasks.append(task)
+
+        super().append(task)
+
+        super().insert(__index, task)
+
+    def extend(self, schedule: Schedule) -> None:
+
+        if not isinstance(schedule, Schedule):
+            raise TypeError("Only Tasks can be added to a schedule")
+
+        self._dependent_tasks.extend(schedule.dependent_tasks)
+        self._independent_tasks.extend(schedule.independent_tasks)
+
+        super().extend(schedule)
+
+    @property
+    def dependent_tasks(self):
+        return self._dependent_tasks
+
+    @property
+    def independent_tasks(self):
+        return self._independent_tasks

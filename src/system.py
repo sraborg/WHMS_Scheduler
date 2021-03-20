@@ -1,7 +1,7 @@
 from task import AbstractTask#, ScheduledTask
 from scheduler import SchedulerFactory
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 
 
@@ -11,7 +11,7 @@ class System:
         self.scheduler = None
         self._tasks = []
         self._schedule = []
-        self._interval = 60            # in Seconds
+        self._sleep_interval = timedelta(seconds=60)            # in Seconds
         self._completed_tasks = []
 
     def add_task(self, task: AbstractTask):
@@ -72,5 +72,5 @@ class System:
         self.scheduler = SchedulerFactory.get_scheduler(name)
 
     def schedule_tasks(self):
-        self._schedule = self.scheduler.schedule_tasks(self._tasks, self._interval)
+        self._schedule = self.scheduler.schedule_tasks(self._tasks, self._sleep_interval)
 

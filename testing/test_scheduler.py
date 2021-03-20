@@ -418,7 +418,7 @@ class TestScheduler(unittest.TestCase):
         self.assertEqual(p1, p2)
 
 
-    def test_generate_random_schedule(self):
+    def test_generate_random_schedulea(self):
         tasklist = []
 
         for i in range(20):
@@ -442,7 +442,7 @@ class TestScheduler(unittest.TestCase):
 
         start = datetime.now()
 
-        tasklist[0].periodicity = 80
+        tasklist[0].periodicity = 600
 
         sch = MetaHeuristicScheduler()
         sch.start_time = start
@@ -462,6 +462,76 @@ class TestScheduler(unittest.TestCase):
 
         self.assertTrue(MetaHeuristicScheduler._no_duplicate_tasks(c1))
         self.assertTrue(MetaHeuristicScheduler._no_duplicate_tasks(c2))
+
+    def test_generate_sleep_tasks(self):
+
+        schedule = Schedule()
+        duration = timedelta(minutes=1)
+        s = MetaHeuristicScheduler()
+        s.analysis = MedicalAnalysis()
+        s.optimization_horizon = timedelta(minutes=1)
+        sleep_interval = timedelta(seconds=1)
+        sleep_tasks = s.generate_sleep_tasks(s.optimization_horizon, sleep_interval)
+        self.assertEqual(len(sleep_tasks), 60)
+
+    def test_fit_to_horizon(self):
+
+        schedule = Schedule()
+
+        for i in range(5):
+            task = UserTask()
+            task.analysis = MedicalAnalysis()
+            task.analysis.wcet = 20
+            schedule.append(task)
+
+        duration = timedelta(seconds=90)
+
+        s = MetaHeuristicScheduler()
+        trimmed_schedule = s.fit_to_horizon(schedule, duration)
+
+        self.assertEqual(len(trimmed_schedule), len(schedule)-1)
+
+    def test_fit_to_horizon__caching(self):
+
+        schedule = Schedule()
+
+        for i in range(5):
+            task = UserTask()
+            task.analysis = MedicalAnalysis()
+            task.analysis.wcet = 20
+            schedule.append(task)
+
+        duration = timedelta(seconds=90)
+
+        s = MetaHeuristicScheduler()
+        trimmed_schedule = s.fit_to_horizon(schedule, duration)
+        trimmed_schedule2 = s.fit_to_horizon(schedule, duration)
+
+        self.assertTrue(trimmed_schedule is trimmed_schedule2)
+
+
+    def test_generate_random_schedule(self):
+
+        schedule = Schedule()
+
+        for i in range(10):
+            task = UserTask()
+            task.analysis = MedicalAnalysis()
+            task.analysis.wcet = 10
+            if i % 2 == 1:
+                task.add_dependency(schedule[i-1])
+            schedule.append(task)
+
+        s = MetaHeuristicScheduler()
+        s.optimization_horizon = timedelta(seconds=95)
+        gen_schedule = s.generate_random_schedule(schedule, timedelta(seconds=1))
+        independent_tasks_first = all(list(map(lambda x: x.has_dependencies() == False, gen_schedule[0:5])))
+        dependent_tasks_2nd = all(list(map(lambda x: x.has_dependencies(), gen_schedule[5:10])))
+        sleep_tasks_last = all(list(map(lambda x: isinstance(x, SleepTask), gen_schedule[10:])))
+
+        self.assertTrue(independent_tasks_first)
+        self.assertTrue(dependent_tasks_2nd)
+        #self.assertTrue(sleep_tasks_last)
 
 if __name__ == '__main__':
     unittest.main()

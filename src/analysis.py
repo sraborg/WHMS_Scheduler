@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
 import random
+from datetime import timedelta
 from time import sleep
 
 
 class AbstractAnalysis(ABC):
 
     def __init__(self, **kwargs):
-        self.wcet = kwargs.get("wcet", 1)
+        self.wcet = kwargs.get("wcet", timedelta(1))
         self.wcbu = kwargs.get("wcbu", 1)
 
     @abstractmethod
@@ -62,7 +63,7 @@ class HeartRateAnalysis(MedicalAnalysis):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 120
+        self.wcet = timedelta(minutes=2)
         self.wcbu = 1
 
     @staticmethod
@@ -74,7 +75,7 @@ class BloodPressureAnalysis(MedicalAnalysis):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 60
+        self.wcet = timedelta(minutes=1)
         self.wcbu = 1
 
     @staticmethod
@@ -85,7 +86,7 @@ class BloodPressureAnalysis(MedicalAnalysis):
 class RespiratoryRateAnalysis(MedicalAnalysis):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 300
+        self.wcet = timedelta(minutes=5)
         self.wcbu = 1
 
     @staticmethod
@@ -96,7 +97,7 @@ class RespiratoryRateAnalysis(MedicalAnalysis):
 class ElectrocardiogramAnalysis(MedicalAnalysis):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 10
+        self.wcet = timedelta(seconds=10)
         self.wcbu = 1
 
     @staticmethod
@@ -107,7 +108,7 @@ class ElectrocardiogramAnalysis(MedicalAnalysis):
 class Electroencephalography(MedicalAnalysis):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 1800
+        self.wcet = timedelta(minutes=30)
         self.wcbu = 1
 
     @staticmethod
@@ -118,7 +119,7 @@ class Electroencephalography(MedicalAnalysis):
 class BodyTemperatureAnalysis(MedicalAnalysis):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 15
+        self.wcet = timedelta(seconds=15)
         self.wcbu = 1
 
     @staticmethod
@@ -129,7 +130,7 @@ class BodyTemperatureAnalysis(MedicalAnalysis):
 class MotionAnalysis(MedicalAnalysis):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 600
+        self.wcet = timedelta(minutes=10)
         self.wcbu = 1
 
     @staticmethod
@@ -140,7 +141,7 @@ class MotionAnalysis(MedicalAnalysis):
 class BloodGlucoseAnalysis(MedicalAnalysis):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 20
+        self.wcet = timedelta(seconds=20)
         self.wcbu = 1
 
     @staticmethod
@@ -151,7 +152,7 @@ class BloodGlucoseAnalysis(MedicalAnalysis):
 class ExerciseAnalysis(MedicalAnalysis):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 1200
+        self.wcet = timedelta(minutes=20)
         self.wcbu = 1
 
     @staticmethod
@@ -162,7 +163,7 @@ class ExerciseAnalysis(MedicalAnalysis):
 class StressAnalysis(MedicalAnalysis):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.wcet = 480
+        self.wcet = timedelta(minutes=7)
         self.wcbu = 1
 
     @staticmethod

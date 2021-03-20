@@ -136,6 +136,7 @@ def annealing_sch(args):
             start_time=start_time,
             max_iterations=args.max_iterations,
             generational_threshold=args.generational_threshold,
+            duration=args.duration,
         )
 
     # Check for end_time
@@ -144,7 +145,7 @@ def annealing_sch(args):
             raise Exception("Endtime must be later than start time")
         sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
 
-    #sys.schedule_tasks()
+    sys.schedule_tasks()
     #sys.scheduler._tasks[0].nu.shift_deadlines(10)
     anneal_sch = sys._schedule
     total_anneal_value = sys.simulate_schedule()
