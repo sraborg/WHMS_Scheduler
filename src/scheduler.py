@@ -1133,9 +1133,9 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
         :param kwargs:
         """
         super().__init__(**kwargs)
-        self.num_populations = kwargs.get("num_populations", 50)
-        self.population_size = kwargs.get("population_size", 20)
-        self.breeding_percentage = kwargs.get("breeding_percentage", 0.25)
+        self.num_populations = kwargs.get("num_populations", 10)
+        self.population_size = kwargs.get("population_size", 10)
+        self.breeding_percentage = kwargs.get("breeding_percentage", 0.5)
 
     def schedule_tasks(self, tasklist: Schedule, sleep_interval) -> List[AbstractTask]:
         """ Generates a schedule for a list of tasks
@@ -1156,7 +1156,7 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
             populations.append([])
             for chromosome in range(self.population_size):
                 c = self.generate_random_schedule(tasklist, sleep_interval)
-                print(self._fitness(c))
+                #print(self._fitness(c))
                 populations[i].append(c)
 
         i = 1
@@ -1194,16 +1194,15 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
 
             # Sort Each Chromosome in Each Populations by fitness
             for population in new_populations:
-                population.sort(key=self.simulate_execution, reverse=True)
+                population.sort(key=self._fitness, reverse=True)
 
             # update best schedule
             iterative_best_schedules = list(map(lambda x: x[0], new_populations))
-            iterative_best_schedule = max(iterative_best_schedules, key= lambda x: self.simulate_execution(x))
-            if self.simulate_execution(iterative_best_schedule) > current_best_schedule_value:
+
+            iterative_best_schedule = max(iterative_best_schedules, key= lambda x: self._fitness(x))
+            if self._fitness(iterative_best_schedule) > current_best_schedule_value:
                 current_best_schedule = iterative_best_schedule
 
-            for i in iterative_best_schedules:
-                print(self._fitness(i))
 
             # Migration
             #for i in range(int(len(new_populations)/2)):
@@ -1396,7 +1395,7 @@ class AntScheduler(MetaHeuristicScheduler):
         if self.rank > self.colony_size:
             self.rank = ceil(self.colony_size/2)
 
-    def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
+    def schedule_tasks(self, tasklist: Schedule, interval: timedelta) -> List[AbstractTask]:
         """ Generates a schedule using a modified ant colony optimization algorithm
 
         :param tasklist: the list of tasks to be scheduled
@@ -1409,7 +1408,7 @@ class AntScheduler(MetaHeuristicScheduler):
 
         adt = AntDependencyTree(new_task_list, min_max=True)
 
-        root_node = AntTask(SleepTask(runtime=0, analysis_type="SLEEPANALYSIS", wcet=0))
+        root_node = AntTask(SleepTask(wcet=timedelta(seconds=0)))
 
         # Get Valid starting nodes
         #possible_starting_task = adt.ant_task_choices(Ant(), interval)
@@ -1434,7 +1433,7 @@ class AntScheduler(MetaHeuristicScheduler):
 
                 # Place ants on common "root node"
                 ant_task = root_node
-                time = self.start_time.timestamp()
+                time = self.start_time
 
                 adt.visit_node(ant, ant_task, time)
                 step = 1
@@ -1449,19 +1448,19 @@ class AntScheduler(MetaHeuristicScheduler):
                     if not valid_choices:
                         ant._search_complete = True
                         if self._local_pheromone_update():
-                            adt.update_pheromones([ant], self._fitness)
+                            adt.update_pheromones([ant], self._objective)
 
                         break
 
                     # Check if the ant has taken too much time
-                    elif ant.simulated_time >= self.end_time.timestamp():
+                    elif ant.simulated_time >= self.end_time:
                         if self._local_pheromone_update():
                             adt.update_pheromones([ant], self._fitness)
                         break
 
                     # Make move
                     time += ant_task.wcet
-                    ant_task = self._edge_selection(ant, valid_choices, adt, interval+1)
+                    ant_task = self._edge_selection(ant, valid_choices, adt, i+1)
 
                     adt.visit_node(ant, ant_task, time)
 
@@ -1584,14 +1583,18 @@ class AntScheduler(MetaHeuristicScheduler):
 
             # Normalize
             norm = sum(probabilities)
-            probabilities = [p/norm for p in probabilities]
 
-            # Make a weighted Selection
-            node_choice = random.choices(choices, weights=probabilities)
-            return node_choice[0]
+            if norm == 0: # Fringe case when all values are awful
+                return random.choice(choices)
+            else:
+                probabilities = [p/norm for p in probabilities]
+
+                # Make a weighted Selection
+                node_choice = random.choices(choices, weights=probabilities)
+                return node_choice[0]
 
 
-    def _attractiveness(self, Node: AntTask, time: float):
+    def _attractiveness(self, Node: AntTask, time: datetime):
         """ Heuristic function that takes into consideration:
         (1) the amount of value lost if the task is taken early
 
@@ -1603,7 +1606,7 @@ class AntScheduler(MetaHeuristicScheduler):
             return 0
 
         value_now = Node.value(timestamp=time)
-        utopia_point = Node.soft_deadline.timestamp()
+        utopia_point = Node.soft_deadline
        #hard_deadline = Node.hard_deadline.timestamp()
 
         if time < utopia_point:
@@ -1622,7 +1625,7 @@ class AntScheduler(MetaHeuristicScheduler):
         :param schedule:
         :return:
         """
-        if not AbstractScheduler._validate_schedule(schedule):
+        if not self._validate_schedule(schedule, self.optimization_horizon):
             return self.invalid_schedule_value
         else:
             return self.simulate_execution(schedule)
@@ -1729,7 +1732,7 @@ class Ant:
 
         return visited_nodes[-1]
 
-    def visit(self, ant_task: AntTask, timestamp):
+    def visit(self, ant_task: AntTask, timestamp: datetime):
         """
 
         :param ant_task:
@@ -1806,7 +1809,7 @@ class AntDependencyTree:
                 if not found:
                     raise ValueError("Dependency Error")
 
-    def ant_task_choices(self, ant: Ant, interval: float):
+    def ant_task_choices(self, ant: Ant, sleep_interval: timedelta):
         """ Determines which nodes are available to the ant. In other words, it only excludes nodes (tasks) whose
             dependencies haven't been met or if it has already been visited by the ant.
 
@@ -1827,7 +1830,7 @@ class AntDependencyTree:
 
         # If there are still nodes to visit, add SleepTask
         if not not valid_choices:
-            st = SleepTask(runtime=interval, analysis_type="SLEEPANALYSIS", wcet=interval)
+            st = SleepTask(wcet=sleep_interval)#runtime=sleep_interval, analysis_type="SLEEPANALYSIS", wcet=sleep_interval)
             valid_choices.append(AntTask(st))
 
         return valid_choices
@@ -1851,7 +1854,7 @@ class AntDependencyTree:
 
         #self._pheromones[edge] = self._pheromones.get(edge, 0) + 10000
 
-    def update_pheromones(self, ants: List[Ant], fitness):
+    def update_pheromones(self, ants: List[Ant], objective):
         """
 
         :param ant: the Ant
@@ -1864,7 +1867,7 @@ class AntDependencyTree:
         for ant in ants:
             schedule = list(ant.get_schedule())
 
-            value = fitness(schedule)
+            value = objective(schedule)
 
             path = list(ant.get_visited_nodes())
             for i, node in enumerate(path[:-1]):
