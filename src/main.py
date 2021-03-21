@@ -17,7 +17,8 @@ def parent(args):
 def genetic_sch(args):
     sys = System()
     start_time = get_start_time(args)
-    sys._tasks = get_tasks(args)
+    tasks = get_tasks(args)
+    sys._tasks = tasks
 
     method: str = args.method
     if method == "ga":
@@ -52,7 +53,7 @@ def genetic_sch(args):
     sys.schedule_tasks()
     gen_sch = sys._schedule
     total_gen_value = sys.simulate_schedule()  # start_time=start.timestamp())
-    weighted_gen_value = sys.scheduler.weighted_schedule_value(gen_sch, total_gen_value)
+    weighted_gen_value = sys.scheduler.weighted_schedule_value(tasks, total_gen_value)
 
     print("Genetic Scheduler Value: " + str(total_gen_value))
     print("Genetic Weighted Scheduler Value: " + str(weighted_gen_value))
@@ -121,8 +122,8 @@ def annealing_sch(args):
 
     sys = System()
     start_time = get_start_time(args)
-
-    sys._tasks = get_tasks(args)
+    tasks = get_tasks(args)
+    sys._tasks = tasks
 
     method: str = args.method
     if method == "sa":
@@ -149,7 +150,7 @@ def annealing_sch(args):
     #sys.scheduler._tasks[0].nu.shift_deadlines(10)
     anneal_sch = sys._schedule
     total_anneal_value = sys.simulate_schedule()
-    weighted_anneal_value = sys.scheduler.weighted_schedule_value(anneal_sch, total_anneal_value)
+    weighted_anneal_value = sys.scheduler.weighted_schedule_value(tasks, total_anneal_value)
     print("Simulated Annealing Scheduler Value " + str(total_anneal_value))
     print("Simulated Weighted Annealing Scheduler Value " + str(weighted_anneal_value))
 

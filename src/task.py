@@ -91,7 +91,7 @@ class AbstractTask(ABC):
         return self.nu.eval(timestamp)
 
     def has_dependencies(self):
-        return not not self._dependent_tasks
+        return len(self._dependent_tasks) > 0
 
     def get_dependencies(self):
         return copy.copy(self._dependent_tasks)
@@ -358,7 +358,7 @@ class SleepTask(SystemTask):
         super().__init__()
 
         # Setup NuConstant
-        value = kwargs.get("SLEEP_VALUE", 0.5)
+        value = kwargs.get("SLEEP_VALUE", 0)
         self.nu = NuConstant(CONSTANT_VALUE=value)
 
         # Setup SleepAnalysis
@@ -560,6 +560,8 @@ class Schedule(list):
         super().__init__()
         self._dependent_tasks = []
         self._independent_tasks = []
+        self._periodic_tasks = []
+        self._generated_periodic_tasks = []
 
         if tasks is not None:
             for task in tasks:
@@ -575,7 +577,16 @@ class Schedule(list):
         else:
             self._independent_tasks.append(task)
 
+        # Track Periodic Tasks
+        if task.periodicity > 0:
+            self._periodic_tasks.append(task)
+        elif task.periodicity < 0:
+            self._generated_periodic_tasks.append(task)
+
         super().append(task)
+
+        if len(self.dependent_tasks) + len(self.independent_tasks) != len(self):
+            raise RuntimeError("Schedule Internal Data Invalid. Number of dependent/independent task does not match total tasks")
 
     def insert(self, __index: int, task: AbstractTask) -> None:
         if not isinstance(task, AbstractTask):
@@ -587,7 +598,11 @@ class Schedule(list):
         else:
             self._independent_tasks.append(task)
 
-        super().append(task)
+        # Track Periodic Tasks
+        if task.periodicity > 0:
+            self._periodic_tasks.append(task)
+        elif task.periodicity < 0:
+            self._generated_periodic_tasks.append(task)
 
         super().insert(__index, task)
 
@@ -598,7 +613,8 @@ class Schedule(list):
 
         self._dependent_tasks.extend(schedule.dependent_tasks)
         self._independent_tasks.extend(schedule.independent_tasks)
-
+        self._periodic_tasks.extend(schedule.periodic_tasks)
+        self._generated_periodic_tasks.extend(schedule.generated_periodic_tasks)
         super().extend(schedule)
 
     @property
@@ -608,3 +624,10 @@ class Schedule(list):
     @property
     def independent_tasks(self):
         return self._independent_tasks
+
+    @property
+    def periodic_tasks(self):
+        return self._periodic_tasks
+    @property
+    def generated_periodic_tasks(self):
+        return self._generated_periodic_tasks

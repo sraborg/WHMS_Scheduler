@@ -427,16 +427,17 @@ class AbstractScheduler(ABC):
         self._trimmed_schedule_cache.clear()
         self._schedule_values_cache.clear()
 
-    def _validate_schedule(self, schedule: List[AbstractTask], duration: timedelta) -> bool:
+    def _validate_schedule(self, schedule: List[AbstractTask], planning_horizon: timedelta) -> bool:
         """ Checks if the (trimmed) schedule is consistent with dependencies
             (e.g. no task is scheduled before any of its dependencies).
             Note: Tasks that exceed the planning horizon are validated
 
         :param schedule:
+        :param planning_horizon:
         :return:
         """
 
-        t_schedule = self.fit_to_horizon(schedule, duration)
+        t_schedule = self.fit_to_horizon(schedule, planning_horizon)
 
         # Check for Duplicates
         if not AbstractScheduler._no_duplicate_tasks(t_schedule):
@@ -502,7 +503,7 @@ class AbstractScheduler(ABC):
         AbstractTask.save_tasks(filename, tasklist)
 
     @staticmethod
-    def _no_duplicate_tasks(tasklist: List[AbstractTask]) -> bool:
+    def _no_duplicate_tasks(tasklist: Schedule) -> bool:
         """ Makes sure that there are no copies of an exact same Task
 
         :param tasklist: The list of tasks
@@ -530,7 +531,7 @@ class AbstractScheduler(ABC):
         pass
 
     def simulate_execution(self, tasklist: List[AbstractTask], start=None, **kwargs):
-        """Simulates executes of a schedule
+        """Simulates executes of a schedule. Assumes the schedule is valid.
 
         :param tasklist:
         :param start:
@@ -607,39 +608,16 @@ class AbstractScheduler(ABC):
         """
         new_schedule = Schedule(schedule.independent_tasks)
         new_schedule.extend(Schedule(schedule.dependent_tasks))
-        new_schedule.extend(self.generate_sleep_tasks(self.optimization_horizon, sleep_interval))
 
-        '''
-        independent_tasks = []
-        dependent_tasks = []
-        
-        # Get independent task
-        for task in tasklist:
-            if task.has_dependencies():
-                dependent_tasks.append(task)
-            else:
-                independent_tasks.append(task)
+        if self._no_duplicate_tasks(new_schedule) is False:
+            print(new_schedule)
 
-        # Safely add dependent Tasks
-        while len(dependent_tasks) != 0:
-            task = random.choice(dependent_tasks)
-            dependencies = task.get_dependencies()
-            if all([(d in independent_tasks) for d in dependencies]):
-                independent_tasks.append(task)
-                dependent_tasks.remove(task)
-        
-    
-        new_tasklist0 = independent_tasks
-        new_tasklist = new_tasklist0 + self.generate_periodic_tasks(independent_tasks)
-        
         sleep_tasks = self.generate_sleep_tasks(self.optimization_horizon, sleep_interval)
-        '''
-        """
-        for i in range(self._calculate_num_sleep_tasks_need(new_tasklist, interval)):
-            index = random.randint(0, len(independent_tasks)-1)
-            new_tasklist.insert(index, SleepTask(wcet=interval))
 
-        """
+        # Insert Sleep Tasks into random positions
+        for sleep_task in sleep_tasks:
+            index = random.randint(0, len(new_schedule)-1)
+            new_schedule.insert(index, sleep_task)
 
         return new_schedule
 
@@ -1182,12 +1160,10 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
                 populations[i].append(c)
 
         i = 1
-        converged = False
-
         current_best_schedule = []
         current_best_schedule_value = float('-inf')
 
-        while not converged:
+        while True:
             if self.verbose:
                 print("Processing Generation " + str(i))
 
@@ -1211,8 +1187,9 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
 
                 new_populations.append(next_generation)
 
-                # Termination by Duration
+                # Termination innerloop by Duration
                 if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
+                    print("Learning Duration Ended. Retrieving Best Schedule Found")
                     break
 
             # Sort Each Chromosome in Each Populations by fitness
@@ -1239,7 +1216,7 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
             if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
                 break
 
-        return current_best_schedule
+        return self.fit_to_horizon(current_best_schedule, self.optimization_horizon)
 
     def _fitness(self, schedule):
         """ Alias for objective method
@@ -1309,7 +1286,7 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
                 self.permute_schdule_by_swap(test, i)
 
                 # Only allow mutation if it results in a valid schedule
-                if self._validate_schedule(test):
+                if self._validate_schedule(test, self.optimization_horizon):
                     self.permute_schdule_by_swap(child, i)
 
     def _algorithm_name(self):
@@ -2168,8 +2145,6 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
         print("Generating Schedule Using " + self._algorithm_name() + " Algorithm")
         start_runtime = datetime.now()
 
-        self._converged = False
-
         # Set Starting State
         current_state = self.generate_random_schedule(tasklist, sleep_interval) #random.sample(new_task_list, len(new_task_list))
         current_state_energy = self._energy(current_state)
@@ -2213,7 +2188,7 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
         # Set Best Solution
         self.best_solution = max(agent_solution, key=lambda x:  self._objective(x))
 
-        while not self._converged:
+        while True:
 
             # Loop through agents
             for agent_id in range(self.num_agents):
