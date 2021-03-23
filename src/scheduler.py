@@ -911,11 +911,11 @@ class MetaHeuristicScheduler(AbstractScheduler):
         if x1 is None:
             x1 = random.randint(1, len(parent_1)-2)
         if x2 is None:
-            x2 = random.randint(x1, len(parent_2)-1)
+            x2 = random.randint(x1+1, len(parent_2)-1)
 
         if x1 < 1 or x1 >= len(parent_1)-2:
             raise IndexError("x1 is not a valid index")
-        if x2 <= x1 or x2 >= len(parent_2)-1:
+        if x2 <= x1 or x2 > len(parent_2)-1:
             raise IndexError("x2 is not a valid index")
 
         child_1 = self._get_pmx_child(parent_1, parent_2, x1, x2)
@@ -924,6 +924,16 @@ class MetaHeuristicScheduler(AbstractScheduler):
         return child_1, child_2
 
     def _get_pmx_map(self, e, p1: List, p2: List, x1: int, x2: int, lookup: list):
+        """ Recursively find the index that value of element e should map to
+
+        :param e: elment
+        :param p1: parent 1
+        :param p2: parent 2
+        :param x1: crossover point 1
+        :param x2: crossover point 2
+        :param lookup: lookup list for recursion
+        :return: the index
+        """
         i = p2.index(e)
         v = p1[i]
         j = p2.index(v)
@@ -943,11 +953,17 @@ class MetaHeuristicScheduler(AbstractScheduler):
 
         c[x1:x2] = s1
 
-        unique = [i for i in s2 if i not in s1]
+        unique = [e for e in s2 if e not in s1]
 
         for e in unique:
-            mapped_index = self._get_pmx_map(e, p1, p2, x1, x2, s2)
-            c[mapped_index] = e
+
+            if p1[p2.index(e)] in p2:
+                try:
+                    mapped_index = self._get_pmx_map(e, p1, p2, x1, x2, s2)
+                except ValueError as msg:
+                    pass
+                else:
+                    c[mapped_index] = e
 
         for i in range(len(c)):
             if c[i] is None:

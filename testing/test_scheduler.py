@@ -534,6 +534,18 @@ class TestScheduler(unittest.TestCase):
         except IndexError as msg:
             print("Caught IndexError: " + str(msg))
 
+    def test_PMX_t2(self):
+        """ Test PMX with a known solution
+                    Expected: pass
+        """
+        sch = MetaHeuristicScheduler()
+        p1 = [1, 'a', 4, 3]
+        p2 = [3, 1, 2, 4]
+
+        c1, c2 = sch.partial_matched_crossover(p1, p2, 1, 3)
+
+        self.assertEqual(c1, [3, 'a', 4, 2])
+
     def test_fit_to_horizon(self):
         """ Verify fit_to_horizon removes tasks that exceed horizon.
             Case: 5 tasks with 20 second execution times (100 seconds total) with a 90 second planning horizon.

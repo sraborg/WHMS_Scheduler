@@ -41,7 +41,7 @@ def genetic_sch(args):
             breeding_percentage=args.breeding_percentage,
             verbose=args.verbose,
             invalid_schedule_value=args.invalid_schedule_value,
-            duration=args.duration
+            duration=args.learning_duration
         )
     # Check for end_time
     if args.end_time is not None:
