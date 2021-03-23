@@ -361,12 +361,6 @@ class AbstractScheduler(ABC):
         :param interval:
         :return: A new task list with sleep tasks added
         """
-        """
-        # Calculate the number of sleep tasks needed
-        total_wcet = sum(task.wcet for task in tasklist)
-        dif = self.optimization_horizon.total_seconds() - total_wcet
-        num_sleep_tasks = ceil(dif / interval)
-        """
 
         num_sleep_tasks = floor(planning_horizon / sleep_interval)
 
@@ -376,14 +370,6 @@ class AbstractScheduler(ABC):
             sleep_tasks.append(SleepTask(wcet=sleep_interval))
 
         return sleep_tasks
-
-    """
-    def _calculate_num_sleep_tasks_need(self, tasklist, interval):
-        # Calculate the number of sleep tasks needed
-        total_wcet = sum(task.wcet for task in tasklist)
-        dif = self.optimization_horizon.total_seconds() - total_wcet
-        return ceil(dif / interval)
-    """
 
     def generate_periodic_tasks(self, tasklist: Schedule):
         """  Generates all possible periodic tasks that can be executed within planning horizon
@@ -395,27 +381,27 @@ class AbstractScheduler(ABC):
         if len(tasklist.generated_periodic_tasks) > 0:
             raise RuntimeError("Periodic Tasks Have already been generated")
 
-        new_periodic_tasks = []
+        new_periodic_tasks = Schedule()
 
         for task in tasklist.periodic_tasks:
-            num_periodic_tasks: int = 0
+            #num_periodic_tasks: int = 0
 
-            # Determine How many future periodic tasks are possible
-            horizon = self.end_time - task.earliest_start
-            max_num_periodic_tasks: int = floor(horizon.total_seconds() / task.periodicity)
-
-            # Generate New Periodic Tasks
-            for i in range(max_num_periodic_tasks):
+            i = 1
+            t = task.earliest_start
+            while t < self.end_time - task.periodicity:
 
                 # interval shift
-                shift: float = (i+1) * task.periodicity
+                shift: timedelta = timedelta(seconds=(i) * task.periodicity.total_seconds())
 
                 new_task: AbstractTask = copy.deepcopy(task)
-                new_task.periodicity = -1
+                new_task.periodicity = timedelta(seconds=-1)
 
                 new_task.nu.shift_deadlines(shift)
 
                 new_periodic_tasks.append(new_task)
+
+                i = i + 1
+                t = task.earliest_start + shift
 
         return new_periodic_tasks
 
@@ -572,16 +558,17 @@ class AbstractScheduler(ABC):
             raise AssertionError("Current Value exceeds Utopian Value")
         return self._schedule_values_cache[key]
 
-    @staticmethod
-    def utopian_schedule_value(schedule):
+    def utopian_schedule_value(self, schedule: Schedule):
         """ Gets the Utopian (the best) value. Note this value may not be achievable.
 
         :param schedule:
         :return:
         """
+        u_schedule = schedule[:]
+        u_schedule.extend(self.generate_periodic_tasks(schedule))
 
         value = 0
-        for task in schedule:
+        for task in u_schedule:
             date_time = task.soft_deadline
             time = date_time
             value += task.value(timestamp=time)
@@ -619,6 +606,10 @@ class AbstractScheduler(ABC):
         if self._no_duplicate_tasks(new_schedule) is False:
             print(new_schedule)
 
+        new_schedule.extend(self.generate_periodic_tasks(new_schedule))
+
+
+        # Handle Sleep Tasks
         sleep_tasks = self.generate_sleep_tasks(self.optimization_horizon, sleep_interval)
 
         # Insert Sleep Tasks into random positions
@@ -913,7 +904,7 @@ class MetaHeuristicScheduler(AbstractScheduler):
         if x2 is None:
             x2 = random.randint(x1+1, len(parent_2)-1)
 
-        if x1 < 1 or x1 >= len(parent_1)-2:
+        if x1 < 1 or x1 > len(parent_1)-2:
             raise IndexError("x1 is not a valid index")
         if x2 <= x1 or x2 > len(parent_2)-1:
             raise IndexError("x2 is not a valid index")
@@ -924,7 +915,8 @@ class MetaHeuristicScheduler(AbstractScheduler):
         return child_1, child_2
 
     def _get_pmx_map(self, e, p1: List, p2: List, x1: int, x2: int, lookup: list):
-        """ Recursively find the index that value of element e should map to
+        """ Recursively find the index that value of element e should map to.
+            Used internally by _get_pmx_child.
 
         :param e: elment
         :param p1: parent 1
@@ -946,6 +938,15 @@ class MetaHeuristicScheduler(AbstractScheduler):
             return j
 
     def _get_pmx_child(self, p1, p2, x1, x2):
+        """ Generates a child from two parents using the modified PMX genetic operation.
+
+
+        :param p1: parent 1
+        :param p2: parent 2
+        :param x1: First crossover point
+        :param x2: Second crossover point
+        :return: child
+        """
         s1 = p1[x1:x2]
         s2 = p2[x1:x2]
 
@@ -972,11 +973,21 @@ class MetaHeuristicScheduler(AbstractScheduler):
         return c
 
     def get_average_schedule_value_from_population(self, population: List[List[AbstractTask]]):
+        """
+
+        :param population:
+        :return:
+        """
         total_value = sum(list(map(lambda x: self._objective(x), population)))
         average = total_value / len(population)
         return average
 
     def get_max_schedule_value_from_population(self, population: List[List[AbstractTask]]):
+        """
+
+        :param population:
+        :return:
+        """
         return max([self._objective(i) for i in population])
 
 

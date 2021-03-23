@@ -35,7 +35,7 @@ class AbstractNu(ABC):
         return self._hard_deadline
 
     @abstractmethod
-    def fit_model(self, values: List[Tuple[datetime, float]]):
+    def fit_model(self, values: List[Tuple[float, float]]):
         """ Takes a list of datetimes/value tuples and determines the following
         (1) earliest_start
         (2) soft_deadline
@@ -70,7 +70,7 @@ class AbstractNu(ABC):
     def utopian_value(self):
         return max(self._y)
 
-    def shift_deadlines(self, shift_interval: float):
+    def shift_deadlines(self, shift_interval: timedelta):
         """ Shifts all the deadlines and their associated values
 
         :param shift_interval: The number of seconds to shift the deadlines
@@ -78,8 +78,14 @@ class AbstractNu(ABC):
         # Configure new values
         new_values = []
         for deadline, value in self._values:
-            new_timestamp = deadline + shift_interval
+            shift: float = shift_interval.total_seconds()
+            new_timestamp: float = deadline + shift
             new_values.append((new_timestamp, value))
+
+        # Shift Earliest Start and Soft/Hard Deadlines
+        self._earliest_start = self._earliest_start + shift_interval
+        self._soft_deadline = self._soft_deadline + shift_interval
+        self._hard_deadline = self._hard_deadline + shift_interval
 
         # Refit model
         self.fit_model(new_values)
@@ -93,7 +99,7 @@ class NuRegression(AbstractNu):
         """
         super().__init__()
 
-    def fit_model(self, values: List[Tuple[datetime, int]]):
+    def fit_model(self, values: List[Tuple[float, int]]):
         """
 
         :param values:
@@ -128,7 +134,7 @@ class NuConstant(AbstractNu):
         :param values:
         :return:
         """
-        pass
+        super().fit_model(values)
 
     def eval(self, timestamp):
         """ Returns a constant value regardless of the timestamp value

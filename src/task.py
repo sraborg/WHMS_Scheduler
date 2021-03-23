@@ -17,7 +17,7 @@ class AbstractTask(ABC):
         self.analysis = kwargs.get("analysis", None)
         self.values = kwargs.get("values", [])
         self.nu = kwargs.get("nu", None)
-        self.periodicity: int = kwargs.get("periodicity", 0)
+        self.periodicity: timedelta = timedelta(seconds=kwargs.get("periodicity", 0))
         self._cost = kwargs.get("cost", None)
         self._dependent_tasks: List[AbstractTask] = kwargs.get("dependent_tasks", [])
         self._dynamic_tasks = kwargs.get("dynamic_tasks", [])        # potential tasks
@@ -149,7 +149,7 @@ class AbstractTask(ABC):
                 #task.hard_deadline = datetime.fromtimestamp(float(entry["hard_deadline"]))
                 task.ordered_by = entry["ordered_by"]
                 #task.values = entry["values"]
-                task.periodicity = entry["periodicity"]
+                task.periodicity = timedelta(seconds=entry["periodicity"])
 
                 # Setup Nu
                 nu = NuFactory.get_nu(entry["nu"])
@@ -578,9 +578,9 @@ class Schedule(list):
             self._independent_tasks.append(task)
 
         # Track Periodic Tasks
-        if task.periodicity > 0:
+        if task.periodicity > timedelta(seconds=0):
             self._periodic_tasks.append(task)
-        elif task.periodicity < 0:
+        elif task.periodicity < timedelta(seconds=0):
             self._generated_periodic_tasks.append(task)
 
         super().append(task)
@@ -599,9 +599,9 @@ class Schedule(list):
             self._independent_tasks.append(task)
 
         # Track Periodic Tasks
-        if task.periodicity > 0:
+        if task.periodicity > timedelta(seconds=0):
             self._periodic_tasks.append(task)
-        elif task.periodicity < 0:
+        elif task.periodicity < timedelta(seconds=0):
             self._generated_periodic_tasks.append(task)
 
         super().insert(__index, task)
