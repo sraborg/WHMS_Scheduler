@@ -76,7 +76,8 @@ def ant_sch(args):
             epsilon=args.epsilon,
             max_iterations=args.max_iterations,
             threshold=args.threshold,
-            generational_threshold=5
+            generational_threshold=5,
+            learning_duration = args.learning_duration
         )
     if method.upper() == "ACO":
         sys.scheduler = SchedulerFactory.ant_colony_scheduler(
@@ -87,7 +88,8 @@ def ant_sch(args):
             epsilon=args.epsilon,
             max_iterations=args.max_iterations,
             threshold=args.threshold,
-            generational_threshold=5
+            generational_threshold=5,
+            learning_duration = args.learning_duration
         )
 
     if method.upper() == "ELITE":
@@ -99,7 +101,8 @@ def ant_sch(args):
             epsilon=args.epsilon,
             max_iterations=args.max_iterations,
             threshold=args.threshold,
-            generational_threshold=5
+            generational_threshold=5,
+            learning_duration = args.learning_duration
         )
     # Check for end_time
     if args.end_time is not None:
@@ -137,7 +140,7 @@ def annealing_sch(args):
             start_time=start_time,
             max_iterations=args.max_iterations,
             generational_threshold=args.generational_threshold,
-            duration=args.duration,
+            duration=args.learning_duration,
         )
 
     # Check for end_time
@@ -224,14 +227,14 @@ def after_parse(args, tasklist=None):
 # Main Parser
 parser = argparse.ArgumentParser()
 parser.add_argument('--verbose', action='store_true', help='foo help')
-parser.add_argument('-d', '--duration', type=int, help='How many minutes to run the algorithm', default=1)
-parser.add_argument('-e', '--export_tasklist', type=str, help='export tasklist')
+parser.add_argument('--learning-duration', type=int, help='How many minutes to run the algorithm', default=1)
+parser.add_argument('-e', '--export-tasklist', type=str, help='export tasklist')
 tasks = parser.add_mutually_exclusive_group(required=True)
-tasks.add_argument('-l', '--load_tasklist', type=str, help="")
-tasks.add_argument('-g', '--generate_tasks', type=int, help="")
+tasks.add_argument('-l', '--load-tasklist', type=str, help="")
+tasks.add_argument('-g', '--generate-tasks', type=int, help="")
 subparsers = parser.add_subparsers(help='sub-command help')
-parser.add_argument('--start_time', type=int, help="")
-parser.add_argument('--end_time', type=float, help="")
+parser.add_argument('--start-time', type=int, help="")
+parser.add_argument('--end-time', type=float, help="")
 
 #parser.add_argument("-g", "--generate_tasks", type=int, help="Generates Random Tasks")
 

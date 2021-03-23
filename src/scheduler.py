@@ -305,34 +305,29 @@ class AbstractScheduler(ABC):
         # Lazy-Load
         if self._optimization_horizon is None:
 
-            # Simple case
-            if self.end_time is not None:
-                self._optimization_horizon = self.end_time - self.start_time
+            if self.end_time is None:
+                raise ValueError("End Time attribute must be set")
+            if self.start_time is None:
+                raise ValueError("Start Time attribute must be set")
 
-            # Missing End_time case (Generate an optimization horizon & end_time)
-            else:
-                if self._tasks is None:
-                    raise ValueError("No tasks to schedule")
-                else:
-                    self._optimization_horizon = AbstractScheduler.calculate_optimization_horizon(self, self._tasks)
-                    self.end_time = self.start_time + self._optimization_horizon
+            self._optimization_horizon = self.end_time - self.start_time
 
         return self._optimization_horizon
+
 
     @optimization_horizon.setter
     def optimization_horizon(self, value):
         self._optimization_horizon = value
 
+    """
     def calculate_optimization_horizon(self, tasklist):
-        """
-
-        :param tasklist:
-        :return: the generated horizon as a timedelta
-        """
+        
         temp = [task.hard_deadline for task in tasklist]
         latest_task = max([task.hard_deadline.timestamp() + task.wcet for task in tasklist])
         horizon = datetime.fromtimestamp(latest_task) - self.start_time
         return horizon
+
+    """
 
     def _initialize_tasklist(self, tasklist: List[AbstractTask], interval):
         """ Template Method that calls several delegated tasks
@@ -356,7 +351,8 @@ class AbstractScheduler(ABC):
 
         return new_tasklist
 
-    def generate_sleep_tasks(self, planning_horizon: timedelta, sleep_interval: timedelta): #tasklist: List[AbstractTask], interval):
+    @staticmethod
+    def generate_sleep_tasks(planning_horizon: timedelta, sleep_interval: timedelta): #tasklist: List[AbstractTask], interval):
         """ Generates sleep tasks for the task list. It works by first calculating the maximum execution
         of entire task list (using each tasks WCET). Then it fills the remaining time left within the
         planning horizon with sleep tasks.
@@ -389,40 +385,47 @@ class AbstractScheduler(ABC):
         return ceil(dif / interval)
     """
 
-    def generate_periodic_tasks(self, tasklist: List[AbstractTask]):
+    def generate_periodic_tasks(self, tasklist: Schedule):
         """  Generates all possible periodic tasks that can be executed within planning horizon
 
         :param tasklist: A list of tasks
         :return: A new list with the periodic tasks added
         """
+
+        if len(tasklist.generated_periodic_tasks) > 0:
+            raise RuntimeError("Periodic Tasks Have already been generated")
+
         new_periodic_tasks = []
 
-        for task in tasklist:
+        for task in tasklist.periodic_tasks:
             num_periodic_tasks: int = 0
 
-            # Find Periodic tasks
-            if task.periodicity > 0:
+            # Determine How many future periodic tasks are possible
+            horizon = self.end_time - task.earliest_start
+            max_num_periodic_tasks: int = floor(horizon.total_seconds() / task.periodicity)
 
-                # Determine How many future periodic tasks are possible
-                horizon = self.end_time - task.earliest_start
-                max_num_periodic_tasks: int = floor(horizon.total_seconds() / task.periodicity)
+            # Generate New Periodic Tasks
+            for i in range(max_num_periodic_tasks):
 
-                # Generate New Periodic Tasks
-                for i in range(max_num_periodic_tasks):
+                # interval shift
+                shift: float = (i+1) * task.periodicity
 
-                    # interval shift
-                    shift: float = (i+1) * task.periodicity
+                new_task: AbstractTask = copy.deepcopy(task)
+                new_task.periodicity = -1
 
-                    new_task: AbstractTask = copy.deepcopy(task)
-                    new_task.periodicity = -1
+                new_task.nu.shift_deadlines(shift)
 
-                    new_task.nu.shift_deadlines(shift)
-
-                    new_periodic_tasks.append(new_task)
+                new_periodic_tasks.append(new_task)
 
         return new_periodic_tasks
 
     def clear_cache(self):
+        """ Deletes caches for:
+            1) Trimmed Schedules
+            2) Objective Values
+            3) Schedule values
+        """
+
         self._objective_cache.clear()
         self._trimmed_schedule_cache.clear()
         self._schedule_values_cache.clear()
@@ -444,23 +447,26 @@ class AbstractScheduler(ABC):
             return False
 
         # Check Dependencies
-        if not AbstractScheduler._verify_schedule_dependencies(t_schedule):
+        if not AbstractScheduler.verify_schedule_dependencies(t_schedule):
             return False
 
         return True
 
     @staticmethod
-    def _verify_schedule_dependencies(schedule: List[AbstractTask]):
+    def verify_schedule_dependencies(schedule: Schedule):
         """ Checks that every dependency for every task is scheduled prior to the task
 
         :param schedule:
         :return:
         """
-        non_sleep_tasks = [task for task in schedule if not task.is_sleep_task()]
+        #non_sleep_tasks = [task for task in schedule if not task.is_sleep_task()]
         prior_tasks = []
 
         # Check Each scheduledTask
-        for i, task in enumerate(non_sleep_tasks):
+        for i, task in enumerate(schedule):
+
+            if task.is_sleep_task():
+                continue
 
             # Check Dependencies
             if not AbstractScheduler._verify_task_dependencies(task, prior_tasks):
@@ -473,6 +479,7 @@ class AbstractScheduler(ABC):
     @staticmethod
     def _verify_task_dependencies(task, prior_tasks):
         """ Checks that every dependency for a task is scheduled prior to the task.
+        Used internally by verify_schedule_dependencies method.
 
         :param task:
         :param prior_tasks:
@@ -688,7 +695,7 @@ class MetaHeuristicScheduler(AbstractScheduler):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.duration = kwargs.get("duration", 1) # Duration Stored in minutes
+        self.learning_duration = timedelta(minutes=kwargs.get("learning_duration", 1)) # Duration Stored in minutes
         self.max_iterations = kwargs.get("max_iterations", 100)
         self.threshold = kwargs.get("threshold", 0.01)
         self.generational_threshold = kwargs.get("generational_threshold", 10)
@@ -710,7 +717,7 @@ class MetaHeuristicScheduler(AbstractScheduler):
         """
         elapsed_time = datetime.now() - start_runtime
 
-        progress: int = ceil((elapsed_time.total_seconds() / (self.duration * 60)*100))
+        progress: int = ceil((elapsed_time.total_seconds() / self.learning_duration.total_seconds() * 100))
         if self._progress != progress:
             self._progress = progress
             if self.verbose:
@@ -889,49 +896,64 @@ class MetaHeuristicScheduler(AbstractScheduler):
         insertion_index = random.randint(0, len(schedule) - 1)
         schedule[insertion_index:insertion_index] = block
 
-    @staticmethod
-    def partial_matched_crossover(parent_1: List, parent_2):
+    def partial_matched_crossover(self, parent_1: List, parent_2, x1=None, x2=None):
+        """ Performs the PMX genetic operation on parent_1 and parent_2 to produce child_1 and child_2
+            Assumes that neither parent has duplicate elements
 
-        child_1 = parent_1[:]
-        child_2 = parent_2[:]
+        :param parent_1: First Parent
+        :param parent_2: Second Parent
+        :param x1: First crossover point
+        :param x2: Second crossover point
+        :return: child_1 and child_2
+        """
+
         # Get Crossover Points
-        x1 = random.randint(0, len(child_1)-1)
-        x2 = random.randint(x1, len(child_1)-1)
+        if x1 is None:
+            x1 = random.randint(1, len(parent_1)-2)
+        if x2 is None:
+            x2 = random.randint(x1, len(parent_2)-1)
 
-        # Create map
-        pmx_map = {}
-        for i in range (x1, x2):
-            pmx_map[child_1[i]] = child_2[i]
-            pmx_map[child_2[i]] = child_1[i]
+        if x1 < 1 or x1 >= len(parent_1)-2:
+            raise IndexError("x1 is not a valid index")
+        if x2 <= x1 or x2 >= len(parent_2)-1:
+            raise IndexError("x2 is not a valid index")
 
-        # Swap middle
-        p1_mid = child_2[x1:x2]
-        p2_mid = child_1[x1:x2]
-        del child_1[x1:x2]
-        del child_2[x1:x2]
-
-        child_1[x1:x1] = p1_mid
-        child_2[x1:x1] = p2_mid
-
-        # Swap values in first segment using map
-        for i in range(x1):
-
-            if child_1[i] in pmx_map:
-                child_1[i] = pmx_map[child_1[i]]
-
-            if child_2[i] in pmx_map:
-                child_2[i] = pmx_map[child_2[i]]
-
-                # Swap values in first segment using map
-                for i in range(x2, len(parent_1)):
-
-                    if child_2[i] in pmx_map:
-                        child_2[i] = pmx_map[child_2[i]]
-
-                    if child_2[i] in pmx_map:
-                        child_2[i] = pmx_map[child_2[i]]
+        child_1 = self._get_pmx_child(parent_1, parent_2, x1, x2)
+        child_2 = self._get_pmx_child(parent_2, parent_1, x1, x2)
 
         return child_1, child_2
+
+    def _get_pmx_map(self, e, p1: List, p2: List, x1: int, x2: int, lookup: list):
+        i = p2.index(e)
+        v = p1[i]
+        j = p2.index(v)
+
+        if p2[j] in lookup:
+            l2 = lookup[:]
+            l2.remove(p2[i])
+            return self._get_pmx_map(p2[j], p1, p2, x1, x2, l2)
+        else:
+            return j
+
+    def _get_pmx_child(self, p1, p2, x1, x2):
+        s1 = p1[x1:x2]
+        s2 = p2[x1:x2]
+
+        c = [None for i in range(len(p1))]
+
+        c[x1:x2] = s1
+
+        unique = [i for i in s2 if i not in s1]
+
+        for e in unique:
+            mapped_index = self._get_pmx_map(e, p1, p2, x1, x2, s2)
+            c[mapped_index] = e
+
+        for i in range(len(c)):
+            if c[i] is None:
+                c[i] = p2[i]
+
+        return c
 
     def get_average_schedule_value_from_population(self, population: List[List[AbstractTask]]):
         total_value = sum(list(map(lambda x: self._objective(x), population)))
@@ -1060,7 +1082,7 @@ class GeneticScheduler(MetaHeuristicScheduler):
         if tasklist is None:
             tasklist = self._tasks
 
-        if not AbstractScheduler._validate_schedule(schedule):
+        if not AbstractScheduler._validate_schedule(schedule, self.optimization_horizon):
             return self.invalid_schedule_value
         #elif not GeneticScheduler._all_tasks_present(tasklist, schedule):
             #return self.invalid_schedule_value
@@ -2202,7 +2224,7 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
                 total_temperatures = 0
 
                 # Calculate agent_mcl on each pass
-                agent_mcl: int = self._agent_mcl(self.pos, self.local_searches, len(tasklist), start_runtime, self.duration)
+                agent_mcl: int = self._agent_mcl(self.pos, self.local_searches, len(tasklist), start_runtime, self.learning_duration)
 
                 for i in range(agent_mcl):
 
@@ -2277,7 +2299,7 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
 
         return best_candidate
 
-    def _agent_mcl(self, pos, mcl, tasklist_size: int, start_runtime, duration) -> int:
+    def _agent_mcl(self, pos, mcl, tasklist_size: int, start_runtime, learning_duration) -> int:
         """
 
         :param pos:
@@ -2289,26 +2311,27 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
         """
         elapsed_time: timedelta = datetime.now() - start_runtime
         #norm_elapsed_time: float = elapsed_time.total_seconds() / (duration * 60)
-        elapsed_time = elapsed_time.total_seconds()
+        #elapsed_time = elapsed_time.total_seconds()
 
-        MAX_START: float = pos * (duration * 60)
-        MAX_END: float = (1 - pos) * (duration * 60)
+        MAX_START: timedelta = timedelta(seconds=pos * learning_duration.total_seconds())
+        MAX_END: timedelta = timedelta(seconds=(1 - pos) * learning_duration.total_seconds())
 
+        # Early Case
         if elapsed_time < MAX_START:
-             weight: float = max( (elapsed_time / MAX_START) * 3, 1)
-             vmlc = ceil(weight * (mcl / 2))
-             if self.verbose:
+            weight: float = max( (elapsed_time.total_seconds() / MAX_START.total_seconds()) * 3, 1)
+            vmlc = ceil(weight * (mcl / 2))
+            if self.verbose:
                 print("early: " + str(vmlc))
-             return vmlc
-        elif elapsed_time > MAX_START and elapsed_time < MAX_END:
+            return vmlc
+        elif MAX_START < elapsed_time < MAX_END:
             vmlc = ceil(3 * mcl/2)
             if self.verbose:
                 print("max: " + str(vmlc))
             return vmlc
         else:   # Case elapsed_time > MAX_END
-            end_time = duration * 60
+            end_time = learning_duration
             period = end_time - MAX_END
-            weight: float = max((period - (elapsed_time - MAX_END)) / period * 3, 1)
+            weight: float = max((period.total_seconds() - (elapsed_time.total_seconds() - MAX_END.total_seconds())) / period.total_seconds() * 3, 1)
             vmlc = ceil(weight * (mcl / 2))
             if self.verbose:
                 print("late: " + str(vmlc))
@@ -2338,6 +2361,10 @@ class TemperatureQueue():
         heapq.heappush(self._temperatures, -temp)
 
     def remove_top(self, n: int):
+        """ Removes the n largest temperatures
+
+        :param n: The number of temperatures to remove
+        """
         self._temperatures.sort()
         del self._temperatures[:n]
         heapq.heapify(self._temperatures)
