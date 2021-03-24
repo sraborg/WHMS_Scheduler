@@ -556,9 +556,9 @@ class AbstractScheduler(ABC):
 
             self._schedule_values_cache[key] = total_value
 
-        if self._schedule_values_cache[key] > self.utopian_schedule_value(tasklist):
-            print(str(self._schedule_values_cache[key]) + " | " + str(self.utopian_schedule_value(tasklist)))
-            raise AssertionError("Current Value exceeds Utopian Value")
+        #if self._schedule_values_cache[key] > self.utopian_schedule_value(tasklist):
+        #    print(str(self._schedule_values_cache[key]) + " | " + str(self.utopian_schedule_value(tasklist)))
+        #    raise AssertionError("Current Value exceeds Utopian Value")
         return self._schedule_values_cache[key]
 
     def utopian_schedule_value(self, schedule: Schedule):
@@ -2183,7 +2183,12 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
 
     def _energy(self, state):
         val = self._objective(state)
-        return sympy.Rational(1, val)
+
+        # Check for zero val case
+        if val == 0:
+            return -(self.invalid_schedule_value)
+        else:
+            return sympy.Rational(1, val)
 
     def _initialize_temperature(self, **kwargs):
         return self.temperature
@@ -2241,7 +2246,8 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
             agent_task_index.append(random.randint(0, len(neighbor_state)))
 
         if self._temperatures.peek() == 0:
-            raise RuntimeError("Unable to initialize temperatures. Please consider increasing the temperature list length.")
+            self._temperatures.push(100)  # temp solution
+            #raise RuntimeError("Unable to initialize temperatures. Please consider increasing the temperature list length.")
 
         # Set Best Solution
         self.best_solution = max(agent_solution, key=lambda x:  self._objective(x))

@@ -121,7 +121,7 @@ class AbstractTask(ABC):
         return isinstance(self, DummyTask)
 
     def is_sleep_task(self):
-        return isinstance(self.analysis, SleepTask)
+        return isinstance(self, SleepTask)
 
     def is_periodic(self):
         return False

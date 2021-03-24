@@ -242,6 +242,33 @@ class TestScheduler(unittest.TestCase):
         gen_schedule = s.generate_random_schedule(schedule, timedelta(seconds=1))
         self.assertTrue(s.verify_schedule_dependencies(gen_schedule))
 
+    def test_generate_random_schedule_t2(self):
+        """ Verifies the generate_random_schedule creates the correct number of sleepTasks are generated.
+                    Case: 60 minute horizon divided by 1 minute long sleep tasks. Shoul
+                    Expected: pass
+                """
+
+        schedule = Schedule()
+
+        # Generate 2 tasks
+        # Odd indexed Tasks depend on prior task
+        for i in range(2):
+            task = UserTask()
+            task.analysis = MedicalAnalysis()
+            task.analysis.wcet = timedelta(seconds=10)
+            if i % 2 == 1:
+                task.add_dependency(schedule[i - 1])
+            schedule.append(task)
+
+        s = MetaHeuristicScheduler()
+        s.optimization_horizon = timedelta(minutes=60)
+        sleep_interval = timedelta(minutes=1)
+
+        random_schedule = s.generate_random_schedule(schedule, sleep_interval)
+        num_sleep_tasks = len([s for s in random_schedule if s.is_sleep_task()])
+
+        self.assertEqual(60, num_sleep_tasks)
+
     def test_utopian_schedule(self):
         """ Verify that the utopian schedule calculates the correct total value (including periodic tasks), regardless
             of time conflicts

@@ -18,6 +18,7 @@ def genetic_sch(args):
     sys = System()
     unscheduled_tasks = get_tasks(args)
     sys._tasks = unscheduled_tasks
+    sys.sleep_interval = timedelta(minutes=args.sleep_interval)
 
     method: str = args.method
     if method == "ga":
@@ -62,7 +63,7 @@ def ant_sch(args):
     sys = System()
     unscheduled_tasks = get_tasks(args)
     sys._tasks = unscheduled_tasks
-
+    sys.sleep_interval = timedelta(minutes=args.sleep_interval)
     method: str = args.method
     if method.upper() == "AS":
         sys.scheduler = SchedulerFactory.ant_scheduler(
@@ -121,6 +122,7 @@ def annealing_sch(args):
     start_time = get_start_time(args)
     unscheduled_tasks = get_tasks(args)
     sys._tasks = unscheduled_tasks
+    sys.sleep_interval = timedelta(minutes=args.sleep_interval)
 
     method: str = args.method
     if method == "sa":
@@ -230,6 +232,7 @@ def after_parse(args, tasklist=None):
 parser = argparse.ArgumentParser()
 parser.add_argument('--verbose', action='store_true', help='foo help')
 parser.add_argument('--learning-duration', type=int, help='How many minutes to run the algorithm', default=1)
+parser.add_argument('--sleep_interval', type=int, help='Duration for each sleep task', default=1)
 parser.add_argument('-e', '--export-tasklist', type=str, help='export tasklist')
 tasks = parser.add_mutually_exclusive_group(required=True)
 tasks.add_argument('-l', '--load-tasklist', type=str, help="")
