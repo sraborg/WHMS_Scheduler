@@ -137,7 +137,7 @@ def annealing_sch(args):
             end_time=datetime.fromtimestamp(args.end_time),
             max_iterations=args.max_iterations,
             generational_threshold=args.generational_threshold,
-            duration=args.learning_duration,
+            learning_duration=args.learning_duration,
         )
 
     sys.schedule_tasks()
