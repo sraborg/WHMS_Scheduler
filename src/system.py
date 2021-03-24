@@ -1,4 +1,4 @@
-from task import AbstractTask#, ScheduledTask
+from task import AbstractTask, Schedule #, ScheduledTask
 from scheduler import SchedulerFactory
 from typing import List
 from datetime import datetime, timedelta
@@ -9,8 +9,8 @@ class System:
 
     def __init__(self, **kwargs):
         self.scheduler = None
-        self._tasks = []
-        self._schedule = []
+        self._tasks = Schedule()
+        self._schedule = Schedule()
         self._sleep_interval = timedelta(seconds=60)            # in Seconds
         self._completed_tasks = []
 

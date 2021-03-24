@@ -242,9 +242,14 @@ class TestScheduler(unittest.TestCase):
         gen_schedule = s.generate_random_schedule(schedule, timedelta(seconds=1))
         self.assertTrue(s.verify_schedule_dependencies(gen_schedule))
 
-    def test_utopian_scheule(self):
+    def test_utopian_schedule(self):
+        """ Verify that the utopian schedule calculates the correct total value (including periodic tasks), regardless
+            of time conflicts
+            Expected: Pass
+        """
+
         start_time = datetime.now()
-        end_time = start_time + timedelta(minutes=1, seconds=5)
+        end_time = start_time + timedelta(minutes=1)
 
         s = MetaHeuristicScheduler()
         s.start_time = start_time
@@ -274,6 +279,36 @@ class TestScheduler(unittest.TestCase):
         u_value = s.utopian_schedule_value(tasks)
 
         self.assertEqual(u_value, 16)
+
+    def test_weighted_schedule_value(self):
+        start_time = datetime.now()
+        end_time = start_time + timedelta(minutes=1)
+        unscheduled_tasks = Schedule()
+
+        for i in range(10):
+            t = UserTask()
+            t.analysis = MedicalAnalysis(wcet=timedelta(seconds=5))
+            t.nu = NuFactory.get_nu("CONSTANT", CONSTANT_VALUE=1)
+            t.values = [
+                (start_time.timestamp(), 1),
+                ((start_time + timedelta(seconds=30)).timestamp(), 1),
+                (end_time.timestamp(), 1)
+            ]
+            unscheduled_tasks.append(t)
+
+        s = MetaHeuristicScheduler()
+        s.start_time = start_time
+        s.end_time = end_time
+
+        scheduled_tasks = Schedule()
+        for i in range(9):
+            scheduled_tasks.append(unscheduled_tasks[i])
+
+        raw = s.simulate_execution(scheduled_tasks)
+        utopian = s.utopian_schedule_value(unscheduled_tasks)
+        weight = s.weighted_schedule_value(unscheduled_tasks, raw)
+
+        self.assertEqual(weight, raw/utopian)
 
 
 if __name__ == '__main__':

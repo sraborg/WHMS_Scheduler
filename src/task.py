@@ -132,7 +132,7 @@ class AbstractTask(ABC):
 
     @staticmethod
     def load_tasks(path):
-        tasks = []
+        tasks = Schedule()
         #tb = TaskBuilder()
         with open(path, 'r') as json_file:
             loaded_tasks = json.load(json_file)
@@ -165,7 +165,7 @@ class AbstractTask(ABC):
 
                 tasks.append(task)
 
-        return Schedule(tasks)
+        return tasks
 
     @staticmethod
     def save_tasks(path, tasklist):
@@ -191,7 +191,7 @@ class AbstractTask(ABC):
                     'dependent_tasks': dependent,
                     'nu': task.nu.name(),
                     'values': task.values,
-                    'periodicity': task.periodicity,
+                    'periodicity': task.periodicity.total_seconds(),
                 }
 
                 # Determine Values
@@ -205,14 +205,13 @@ class AbstractTask(ABC):
 
 
     @staticmethod
-    def generate_random_tasks(quantity=10, dependencies=True, start: datetime = None, end:datetime=None, max_value:int=1000):
-        tasklist = []
+    def generate_random_tasks(quantity, start: datetime, end: datetime, dependencies=True,
+                              max_value: int = 100):
+        tasklist = Schedule()
         random.seed()
 
-        if start is None:
-            start = datetime.now()
-        if end is None:
-            end = start + timedelta(minutes=60)
+        if start >= end:
+            raise RuntimeError("End time must be later than start time")
 
         diff = end-start
 
@@ -247,9 +246,10 @@ class AbstractTask(ABC):
 
             t.ordered_by = random.choice(names)
 
-            earliest_start = datetime.fromtimestamp(random.uniform(start.timestamp(),end.timestamp()))
-            soft_deadline = datetime.fromtimestamp(random.uniform(earliest_start.timestamp(), end.timestamp()))
-            hard_deadline = datetime.fromtimestamp(random.uniform(soft_deadline.timestamp(), end.timestamp()))
+            earliest_start: datetime = datetime.fromtimestamp(random.uniform(start.timestamp(), (end - t.analysis.wcet).timestamp()))
+            hard_deadline: datetime = datetime.fromtimestamp(random.uniform(earliest_start.timestamp(), end.timestamp()))
+            soft_deadline: datetime = datetime.fromtimestamp(random.uniform(earliest_start.timestamp(), hard_deadline.timestamp()))
+
 
             '''
             t.earliest_start = earliest_start
@@ -569,6 +569,7 @@ class Schedule(list):
 
     def append(self, task: AbstractTask) -> None:
         if not isinstance(task, AbstractTask):
+            raise TypeError("Only Tasks can be added to a schedule")
             raise TypeError("Only Tasks can be added to a schedule")
 
         # Track Dependencies

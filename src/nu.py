@@ -49,7 +49,7 @@ class AbstractNu(ABC):
         self._x, self._y = zip(*values)              # Time, Values
         self._earliest_start = datetime.fromtimestamp(min(self._x))
         self._soft_deadline = datetime.fromtimestamp(max(values, key=itemgetter(1))[0])
-        self._hard_deadline = datetime.fromtimestamp(max(self._y))
+        self._hard_deadline = datetime.fromtimestamp(max(self._x))
 
     def eval(self, timestamp):
         """ Determines the value of executing task with respect to the given timestamp

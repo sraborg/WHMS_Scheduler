@@ -16,11 +16,11 @@ def main():
 
     print("Generating " + str(args.quantity) + " tasks.")
     tasks = UserTask.generate_random_tasks(
-        args.quantity,
-        args.dependencies,
-        datetime.fromtimestamp(args.start_time),
-        datetime.fromtimestamp(args.end_time),
-        args.max_value
+        quantity=args.quantity,
+        start=datetime.fromtimestamp(args.start_time),
+        end=datetime.fromtimestamp(args.end_time),
+        dependencies=args.dependencies,
+        max_value=args.max_value
     )
 
     UserTask.save_tasks(args.export_tasklist, tasks)

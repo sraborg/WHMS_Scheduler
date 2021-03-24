@@ -50,21 +50,22 @@ class SchedulerFactory:
                             threshold=threshold,
                             generational_threshold=generational_threshold,
                             start_time=start_time,
+                            end_time=end_time,
                             verbose=verbose,
                             invalid_schedule_value=invalid_schedule_value,
                             **kwargs)
 
     @classmethod
     def enhanced_list_based_simulated_annealing(cls,
-                            temperature=10000,
-                            max_iterations=100,
-                            threshold=0.01,
-                            generational_threshold=10,
-                            start_time=None,
-                            end_time=None,
-                            verbose=False,
-                            invalid_schedule_value=-1000.0,
-                            **kwargs):
+                                                temperature=10000,
+                                                max_iterations=100,
+                                                threshold=0.01,
+                                                generational_threshold=10,
+                                                start_time=None,
+                                                end_time=None,
+                                                verbose=False,
+                                                invalid_schedule_value=-1000.0,
+                                                **kwargs):
 
         if start_time is None:
             start_time = datetime.now()
@@ -75,6 +76,7 @@ class SchedulerFactory:
             threshold=threshold,
             generational_threshold=generational_threshold,
             start_time=start_time,
+            end_time= end_time,
             verbose=verbose,
             invalid_schedule_value=invalid_schedule_value,
             **kwargs)
@@ -311,7 +313,8 @@ class AbstractScheduler(ABC):
                 raise ValueError("Start Time attribute must be set")
 
             self._optimization_horizon = self.end_time - self.start_time
-
+            if self._optimization_horizon.total_seconds() < 0:
+                raise RuntimeError("Invalid Horizon. End-time must be after Start-time")
         return self._optimization_horizon
 
 
@@ -565,7 +568,10 @@ class AbstractScheduler(ABC):
         :return:
         """
         u_schedule = schedule[:]
-        u_schedule.extend(self.generate_periodic_tasks(schedule))
+
+        # Generate Periodic Tasks if they haven't been yet
+        if len(schedule.generated_periodic_tasks) == 0:
+            u_schedule.extend(self.generate_periodic_tasks(schedule))
 
         value = 0
         for task in u_schedule:
@@ -588,7 +594,7 @@ class AbstractScheduler(ABC):
         if value is None:
             value = self.simulate_execution(schedule, datetime.now().timestamp())
 
-        utopian_value = AbstractScheduler.utopian_schedule_value(schedule)
+        utopian_value = self.utopian_schedule_value(schedule)
         weighted_value = value / utopian_value
 
         return weighted_value
@@ -1196,7 +1202,7 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
 
         self.clear_cache()
 
-        print("Generating Schedule Using " + self._algorithm_name() + " Algorithm")
+        print("Generating Schedule Using " + self.algorithm_name() + " Algorithm")
         start_runtime = datetime.now()
 
         # Generation initial populations
@@ -1337,7 +1343,7 @@ class NewGeneticScheduler(MetaHeuristicScheduler):
                 if self._validate_schedule(test, self.optimization_horizon):
                     self.permute_schdule_by_swap(child, i)
 
-    def _algorithm_name(self):
+    def algorithm_name(self):
         return "New Genetic Algorithm"
 
     def _get_adaptive_crossover_rate(self, population, individual):
@@ -1451,16 +1457,17 @@ class AntScheduler(MetaHeuristicScheduler):
         :param interval: the period of time to divide the optimization horizon
         :return: an ordered list of tasks
         """
-        print("Generating Schedule Using " + self._algorithm_name() + " Algorithm")
+        print("Generating Schedule Using " + self.algorithm_name() + " Algorithm")
         start_runtime = datetime.now()
         new_task_list = self._initialize_tasklist(tasklist, interval)
 
         adt = AntDependencyTree(new_task_list, min_max=True)
 
-        root_node = AntTask(SleepTask(wcet=timedelta(seconds=0)))
+        #root_node = AntTask(SleepTask(wcet=timedelta(seconds=0)))
 
         # Get Valid starting nodes
-        #possible_starting_task = adt.ant_task_choices(Ant(), interval)
+        possible_starting_task = adt.ant_task_choices(Ant(), interval)
+        root_node = random.choice(possible_starting_task)
         i = 1
         converged = False
         self._generational_threshold_count = 0
@@ -1480,7 +1487,7 @@ class AntScheduler(MetaHeuristicScheduler):
             # Send each Ant to explore
             for ant in colony:
 
-                # Place ants on common "root node"
+                # Place ant on starting node
                 ant_task = root_node
                 time = self.start_time
 
@@ -1585,7 +1592,7 @@ class AntScheduler(MetaHeuristicScheduler):
 
         print("Finished after " + str(i) + " swarms")
 
-        best_solution = global_solutions[0].get_schedule()[1:] # Remove initial root_node
+        best_solution = global_solutions[0].get_schedule() # Remove initial root_node
 
         return best_solution # Skip the root_node of the best_schedule
 
@@ -1597,7 +1604,7 @@ class AntScheduler(MetaHeuristicScheduler):
         :return:
         """
 
-        if random.uniform(0,1) < self.epsilon / iteration:
+        if random.uniform(0, 1) < self.epsilon / iteration:
             return choices[random.randint(0, len(choices) - 1)]
         else:
             probabilities = []
@@ -1642,7 +1649,6 @@ class AntScheduler(MetaHeuristicScheduler):
                 node_choice = random.choices(choices, weights=probabilities)
                 return node_choice[0]
 
-
     def _attractiveness(self, Node: AntTask, time: datetime):
         """ Heuristic function that takes into consideration:
         (1) the amount of value lost if the task is taken early
@@ -1679,7 +1685,7 @@ class AntScheduler(MetaHeuristicScheduler):
         else:
             return self.simulate_execution(schedule)
 
-    def _algorithm_name(self):
+    def algorithm_name(self):
         return "Ant System"
 
     # TEMPLATE METHODS #
@@ -1716,7 +1722,7 @@ class ElitistAntScheduler(AntScheduler):
     def _elitism(self):
         return True
 
-    def _algorithm_name(self):
+    def algorithm_name(self):
         return "Elitist Ant"
 
 
@@ -1731,7 +1737,7 @@ class AntColonyScheduler(AntScheduler):
     def _best_only_update(self):
         return True
 
-    def _algorithm_name(self):
+    def algorithm_name(self):
         return "Ant Colony Optimization (ACO)"
 
 
@@ -1772,7 +1778,7 @@ class Ant:
 
         :return:
         """
-        return list(map(lambda x: x[0]._task, self._path))
+        return Schedule([x[0]._task for x in self._path])  #list(map(lambda x: x[0]._task, self._path))
 
     def last_visited_node(self):
         visited_nodes = list(self.get_visited_nodes())
@@ -1914,7 +1920,7 @@ class AntDependencyTree:
 
         # Calculate new pheromones to add
         for ant in ants:
-            schedule = list(ant.get_schedule())
+            schedule = ant.get_schedule()
 
             value = objective(schedule)
 
@@ -2194,7 +2200,7 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
         self.num_agents = 20
 
     def schedule_tasks(self, tasklist: Schedule, sleep_interval: timedelta) -> List[AbstractTask]:
-        print("Generating Schedule Using " + self._algorithm_name() + " Algorithm")
+        print("Generating Schedule Using " + self.algorithm_name() + " Algorithm")
         start_runtime = datetime.now()
 
         # Set Starting State
@@ -2302,10 +2308,10 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
         :param solution_space:
         :return:
         """
-        candidate1 = state[:]
-        candidate2 = state[:]
-        candidate3 = state[:]
-        candidate4 = state[:]
+        candidate1 = Schedule(state)
+        candidate2 = Schedule(state)
+        candidate3 = Schedule(state)
+        candidate4 = Schedule(state)
         candidate5 = self.generate_random_schedule(tasklist, sleep_interval)
 
         if fixed_task_index is None:
@@ -2364,7 +2370,7 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
                 print("late: " + str(vmlc))
             return vmlc
 
-    def _algorithm_name(self):
+    def algorithm_name(self):
         return "Enhanced List-Based Simulated Annealing"
 
 

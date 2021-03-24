@@ -16,14 +16,14 @@ def parent(args):
 # Sub-command functions
 def genetic_sch(args):
     sys = System()
-    start_time = get_start_time(args)
-    tasks = get_tasks(args)
-    sys._tasks = tasks
+    unscheduled_tasks = get_tasks(args)
+    sys._tasks = unscheduled_tasks
 
     method: str = args.method
     if method == "ga":
         sys.scheduler = SchedulerFactory.genetic_scheduler(
-            start_time=start_time,
+            start_time=datetime.fromtimestamp(args.start_time),
+            end_time=datetime.fromtimestamp(args.end_time),
             population_size=args.population_size,
             breeding_percentage=args.breeding_percentage,
             mutation_rate=args.mutation_rate,
@@ -33,43 +33,41 @@ def genetic_sch(args):
             generational_threshold=args.generational_threshold,
             verbose=args.verbose,
             invalid_schedule_value=args.invalid_schedule_value,
+            learning_duration=args.learning_duration
         )
     elif method == "nga":
         sys.scheduler = SchedulerFactory.new_genetic_scheduler(
-            start_time=start_time,
+            start_time=datetime.fromtimestamp(args.start_time),
+            end_time=datetime.fromtimestamp(args.end_time),
             population_size=args.population_size,
             breeding_percentage=args.breeding_percentage,
             verbose=args.verbose,
             invalid_schedule_value=args.invalid_schedule_value,
-            duration=args.learning_duration
+            learning_duration=args.learning_duration
         )
-    # Check for end_time
-    if args.end_time is not None:
-        if args.end_time <= args.start_time:
-            raise Exception("Endtime must be later than start time")
-        sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
-
 
     sys.schedule_tasks()
     gen_sch = sys._schedule
-    total_gen_value = sys.simulate_schedule()  # start_time=start.timestamp())
-    weighted_gen_value = sys.scheduler.weighted_schedule_value(tasks, total_gen_value)
+    utopian = sys.scheduler.utopian_schedule_value(unscheduled_tasks)
+    raw_value = sys.simulate_schedule()  # start_time=start.timestamp())
+    weighted_value = sys.scheduler.weighted_schedule_value(unscheduled_tasks, raw_value)
 
-    print("Genetic Scheduler Value: " + str(total_gen_value))
-    print("Genetic Weighted Scheduler Value: " + str(weighted_gen_value))
-
+    #print("Genetic Scheduler Value: " + str(total_gen_value))
+    #print("Genetic Weighted Scheduler Value: " + str(weighted_gen_value))
+    print_results(sys.scheduler.algorithm_name(), raw_value, utopian, weighted_value)
     after_parse(args, sys._tasks)
 
 
 def ant_sch(args):
     sys = System()
-    sys._tasks = get_tasks(args)
-    start_time = get_start_time(args)
+    unscheduled_tasks = get_tasks(args)
+    sys._tasks = unscheduled_tasks
 
     method: str = args.method
     if method.upper() == "AS":
         sys.scheduler = SchedulerFactory.ant_scheduler(
-            start_time=start_time,
+            start_time=datetime.fromtimestamp(args.start_time),
+            end_time=datetime.fromtimestamp(args.end_time),
             colony_size=args.colony_size,
             alpha=args.alpha,
             beta=args.beta,
@@ -77,11 +75,12 @@ def ant_sch(args):
             max_iterations=args.max_iterations,
             threshold=args.threshold,
             generational_threshold=5,
-            learning_duration = args.learning_duration
+            learning_duration=args.learning_duration
         )
     if method.upper() == "ACO":
         sys.scheduler = SchedulerFactory.ant_colony_scheduler(
-            start_time=start_time,
+            start_time=datetime.fromtimestamp(args.start_time),
+            end_time = datetime.fromtimestamp(args.end_time),
             colony_size=args.colony_size,
             alpha=args.alpha,
             beta=args.beta,
@@ -89,12 +88,13 @@ def ant_sch(args):
             max_iterations=args.max_iterations,
             threshold=args.threshold,
             generational_threshold=5,
-            learning_duration = args.learning_duration
+            learning_duration=args.learning_duration
         )
 
     if method.upper() == "ELITE":
         sys.scheduler = SchedulerFactory.ElitistAntScheduler(
-            start_time=start_time,
+            start_time=datetime.fromtimestamp(args.start_time),
+            end_time=datetime.fromtimestamp(args.end_time),
             colony_size=args.colony_size,
             alpha=args.alpha,
             beta=args.beta,
@@ -102,22 +102,16 @@ def ant_sch(args):
             max_iterations=args.max_iterations,
             threshold=args.threshold,
             generational_threshold=5,
-            learning_duration = args.learning_duration
+            learning_duration=args.learning_duration
         )
-    # Check for end_time
-    if args.end_time is not None:
-        if args.end_time <= args.start_time:
-            raise Exception("Endtime must be later than start time")
-        sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
 
     sys.schedule_tasks()
     ant_sch = sys._schedule
-    total_ant_value = sys.simulate_schedule()  # start_time=start.timestamp())
-    weighted_ant_value = sys.scheduler.weighted_schedule_value(ant_sch, total_ant_value)
+    raw_value = sys.simulate_schedule()  # start_time=start.timestamp())
+    utopian = sys.scheduler.utopian_schedule_value(unscheduled_tasks)
+    weighted_value = sys.scheduler.weighted_schedule_value(unscheduled_tasks, raw_value)
 
-    print(sys.scheduler._algorithm_name() + " Algorithm Scheduler Value: " + str(total_ant_value))
-    print(sys.scheduler._algorithm_name() + " Algorithm Scheduler Weighted Value: " + str(weighted_ant_value))
-
+    print_results(sys.scheduler.algorithm_name(), raw_value, utopian, weighted_value)
     after_parse(args, sys._tasks)
 
 
@@ -125,38 +119,40 @@ def annealing_sch(args):
 
     sys = System()
     start_time = get_start_time(args)
-    tasks = get_tasks(args)
-    sys._tasks = tasks
+    unscheduled_tasks = get_tasks(args)
+    sys._tasks = unscheduled_tasks
 
     method: str = args.method
     if method == "sa":
         sys.scheduler = SchedulerFactory.simulated_annealing(
-            start_time=start_time,
+            start_time=datetime.fromtimestamp(args.start_time),
+            end_time=datetime.fromtimestamp(args.end_time),
             max_iterations=args.max_iterations,
             generational_threshold=args.generational_threshold,
+            learning_duration=args.learning_duration
         )
     elif method == "elbsa":
         sys.scheduler = SchedulerFactory.enhanced_list_based_simulated_annealing(
-            start_time=start_time,
+            start_time=datetime.fromtimestamp(args.start_time),
+            end_time=datetime.fromtimestamp(args.end_time),
             max_iterations=args.max_iterations,
             generational_threshold=args.generational_threshold,
             duration=args.learning_duration,
         )
 
-    # Check for end_time
-    if args.end_time is not None:
-        if args.end_time <= args.start_time:
-            raise Exception("Endtime must be later than start time")
-        sys.scheduler.end_time = datetime.fromtimestamp(args.end_time)
-
     sys.schedule_tasks()
     #sys.scheduler._tasks[0].nu.shift_deadlines(10)
     anneal_sch = sys._schedule
-    total_anneal_value = sys.simulate_schedule()
-    weighted_anneal_value = sys.scheduler.weighted_schedule_value(tasks, total_anneal_value)
-    print("Simulated Annealing Scheduler Value " + str(total_anneal_value))
-    print("Simulated Weighted Annealing Scheduler Value " + str(weighted_anneal_value))
+    #total_anneal_value = sys.simulate_schedule()
+    #utopian = sys.scheduler.utopian_schedule_value(tasks)
+    #weighted_anneal_value = sys.scheduler.weighted_schedule_value(tasks, total_anneal_value)
+    #print("Simulated Annealing Scheduler Value " + str(total_anneal_value))
+    #print("Simulated Weighted Annealing Scheduler Value " + str(weighted_anneal_value))
+    raw_value = sys.simulate_schedule()  # start_time=start.timestamp())
+    utopian = sys.scheduler.utopian_schedule_value(unscheduled_tasks)
+    weighted_value = sys.scheduler.weighted_schedule_value(unscheduled_tasks, raw_value)
 
+    print_results(sys.scheduler.algorithm_name(), raw_value, utopian, weighted_value)
     after_parse(args, sys._tasks)
 
 
@@ -186,6 +182,12 @@ def random_sch(args):
 
     after_parse(args, sys._tasks)
 
+
+def print_results(algorithm: str, raw: float, utopian: float, weighted: float):
+    print(algorithm)
+    print("Raw Value: " + str(raw))
+    print("Utopian Value: " + str(utopian))
+    print("Weighted Value: " + str(weighted))
 
 def get_tasks(args):
 
