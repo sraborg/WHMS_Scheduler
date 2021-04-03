@@ -423,6 +423,27 @@ class TestScheduler(unittest.TestCase):
         self.assertTrue(s.verify_schedule_dependencies(s1))
         self.assertTrue(s.verify_schedule_dependencies(s2))
 
+    def test_get_schedule_analytics(self):
+        """ Case: Tasks have a total constant value of 3. Simulate_execution should return 3.
+            Expected: Pass
+        """
+        start = datetime.now()
+        sch = GeneticScheduler()
+        schedule = Schedule()
+        task_1 = UserTask()
+        task_2 = UserTask()
+        task_1.nu = NuFactory().get_nu("CONSTANT", CONSTANT_VALUE=1)
+        task_1.analysis = MedicalAnalysis(wcet=timedelta(seconds=1))
+        task_2.nu = NuFactory().get_nu("CONSTANT", CONSTANT_VALUE=2)
+        task_2.analysis = MedicalAnalysis(wcet=timedelta(seconds=1))
+
+        schedule.append(task_1)
+        schedule.append(task_2)
+
+        #sch._tasks = schedule
+        value = sch.simulate_execution(schedule, start)
+        analytics = sch.get_schedule_analytics(schedule, start)
+        self.assertEqual(value, value)
 
 if __name__ == '__main__':
     unittest.main()

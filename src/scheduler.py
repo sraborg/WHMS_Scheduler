@@ -551,6 +551,39 @@ class AbstractScheduler(ABC):
         #    raise AssertionError("Current Value exceeds Utopian Value")
         return self._schedule_values_cache[key]
 
+    def get_schedule_analytics(self, tasklist: Schedule, start:datetime = None, **kwargs):
+        """Simulates executes of a schedule. Assumes the schedule is valid.
+
+        :param tasklist:
+        :param start:
+        :param kwargs:
+        :return: the schedule's value
+        """
+
+        analytics = {
+            "tasks": [],
+        }
+        total_value = 0
+        utopian_value = 0
+
+        if start is None:
+            time = self.start_time
+        else:
+            time = start
+
+            for task in tasklist:
+
+                if not task.is_sleep_task():
+                    total_value += task.value(execution_time=time)
+                    utopian_value += task.utopian_value
+                    t = (time.timestamp(), total_value, task.soft_deadline.timestamp(), task.utopian_value)
+                    analytics["tasks"].append(t)
+
+                time += task.wcet
+        analytics["value"] = total_value
+        analytics["utopian_value"] = utopian_value
+        return analytics
+
     def utopian_schedule_value(self, schedule: Schedule):
         """ Gets the Utopian (the best) value. Note this value may not be achievable.
 
