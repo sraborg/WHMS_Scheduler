@@ -269,7 +269,7 @@ class AbstractTask(ABC):
 
             t.values = [
                 (earliest_start.timestamp(), 0),
-                (soft_deadline.timestamp(), random.randint(0, max_value)),
+                (soft_deadline.timestamp(), random.randint(1, max_value)),
                 (hard_deadline.timestamp(), 0)
             ]
 
