@@ -322,16 +322,6 @@ class AbstractScheduler(ABC):
     def optimization_horizon(self, value):
         self._optimization_horizon = value
 
-    """
-    def calculate_optimization_horizon(self, tasklist):
-        
-        temp = [task.hard_deadline for task in tasklist]
-        latest_task = max([task.hard_deadline.timestamp() + task.wcet for task in tasklist])
-        horizon = datetime.fromtimestamp(latest_task) - self.start_time
-        return horizon
-
-    """
-
     def _initialize_tasklist(self, tasklist: List[AbstractTask], interval):
         """ Template Method that calls several delegated tasks
 
@@ -396,7 +386,7 @@ class AbstractScheduler(ABC):
                 # interval shift
                 shift: timedelta = timedelta(seconds=(i) * task.periodicity.total_seconds())
 
-                new_task: AbstractTask = copy.deepcopy(task)
+                new_task: AbstractTask = copy.copy(task)
                 new_task.periodicity = timedelta(seconds=-1)
 
                 new_task.nu.shift_deadlines(shift)
@@ -526,7 +516,7 @@ class AbstractScheduler(ABC):
         """
         pass
 
-    def simulate_execution(self, tasklist: List[AbstractTask], start=None, **kwargs):
+    def simulate_execution(self, tasklist: List[AbstractTask], start:datetime = None, **kwargs):
         """Simulates executes of a schedule. Assumes the schedule is valid.
 
         :param tasklist:
@@ -551,7 +541,7 @@ class AbstractScheduler(ABC):
 
             for task in tasklist:
 
-                total_value += task.value(timestamp=time)
+                total_value += task.value(execution_time=time)
                 time += task.wcet
 
             self._schedule_values_cache[key] = total_value
@@ -575,9 +565,10 @@ class AbstractScheduler(ABC):
 
         value = 0
         for task in u_schedule:
-            date_time = task.soft_deadline
-            time = date_time
-            value += task.value(timestamp=time)
+            #date_time = task.soft_deadline
+            #time = date_time
+            #t_value = task.value(execution_time=time)
+            value = value + task.utopian_value
 
         return value
 
@@ -606,14 +597,14 @@ class AbstractScheduler(ABC):
         :param interval:
         :return:
         """
-        new_schedule = Schedule(schedule.independent_tasks)
-        new_schedule.extend(Schedule(schedule.dependent_tasks))
+        new_schedule = Schedule(schedule)
 
-        if self._no_duplicate_tasks(new_schedule) is False:
-            print(new_schedule)
+        periodic_tasks = self.generate_periodic_tasks(new_schedule)
+        new_schedule.extend(periodic_tasks)
 
-        new_schedule.extend(self.generate_periodic_tasks(new_schedule))
+        random.shuffle(new_schedule)
 
+        new_schedule = self.dependency_sort(new_schedule)
 
         # Handle Sleep Tasks
         sleep_tasks = self.generate_sleep_tasks(self.optimization_horizon, sleep_interval)
@@ -623,15 +614,56 @@ class AbstractScheduler(ABC):
             index = random.randint(0, len(new_schedule)-1)
             new_schedule.insert(index, sleep_task)
 
+        assert(self.verify_schedule_dependencies(new_schedule))
         return new_schedule
 
+    def dependency_sort(self, schedule: Schedule):
+        """ Performs a topological sort on a schedule ensuring task dependencies are honored
+
+        :param schedule:
+        :return:
+        """
+        visited = [False for t in schedule]
+        result = []
+        for i in range(len(visited)):
+            if not visited[i]:
+                visited_nodes = []
+                self._dfs(i, visited, visited_nodes, schedule)
+                for n in visited_nodes:
+                    result.insert(0, n)
+
+        result = Schedule(result)
+        assert(self.verify_schedule_dependencies(result))
+
+        return result
+
+    def _dfs(self, index, visited: list, visited_nodes: list, schedule: Schedule):
+        """ Internal Depth first search call used by the dependency sort.
+        Performs DFS starting at the given index and tracks the visisted nodes
+
+        :param index:
+        :param visited:
+        :param visited_nodes:
+        :param schedule:
+        :return:
+        """
+        visited[index] = True
+
+        for dependency in schedule[index]._depended_by:
+            d_index = schedule.index(dependency)
+            if not visited[d_index]:
+                self._dfs(d_index, visited, visited_nodes, schedule)
+
+        visited_nodes.append(schedule[index])
+
+        pass
     @staticmethod
-    def calulate_total_schedule_execution_time(schedule):
+    def calculate_total_schedule_execution_time(schedule):
         total = sum([t.wcet for t in schedule])
         return total
 
-    def fit_to_horizon(self, schedule, planning_horizon: timedelta, cache=True):
-        """ Returns a schedule that fits within the planning horizon.
+    def fit_to_horizon(self, schedule, planning_horizon: timedelta, cache=True) -> list:
+        """ Returns an ordered list of tasks that fits within the planning horizon.
 
         If the schedule exceeds the horizon, the excess tasks are truncated.
         Schedules that are within the horizon are unaltered
@@ -640,7 +672,7 @@ class AbstractScheduler(ABC):
         :param schedule:
         :param planning_horizon:
         :param cache Boolean to enable caching
-        :return: a schedule that fits the horizon
+        :return: an ordered list
         """
 
         key = None
@@ -650,10 +682,11 @@ class AbstractScheduler(ABC):
             if key in self._trimmed_schedule_cache:
                 return self._trimmed_schedule_cache[key]
 
-        trimmed_schedule = Schedule()
+        #trimmed_schedule = Schedule()
+        trimmed_schedule = []
 
         exec_time = timedelta(0)
-        for task in schedule:
+        for i, task in enumerate(schedule):
 
             # If running the next task exceeds the horizon, stop
             if exec_time + task.wcet > planning_horizon:
@@ -686,6 +719,20 @@ class AbstractScheduler(ABC):
             self._objective_cache[key] = self.simulate_execution(t_schedule)
 
         return self._objective_cache[key]
+
+    def get_schedule_details(self, schedule: Schedule):
+
+        execution_time = self.start_time
+        results = []
+        for i in range(len(schedule)):
+            task = schedule[i]
+
+            if task.is_sleep_task is False:
+                results.append(task.get_schedule_task_details(task, execution_time))
+
+            execution_time = execution_time + task.wcet
+
+        return results
 
 
 class MetaHeuristicScheduler(AbstractScheduler):
@@ -910,7 +957,14 @@ class MetaHeuristicScheduler(AbstractScheduler):
         if x2 is None:
             x2 = random.randint(x1+1, len(parent_2)-1)
 
+        # Make sure Crossover points are valid for both parents
+        # Checking against Parent 1
         if x1 < 1 or x1 > len(parent_1)-2:
+            raise IndexError("x1 is not a valid index")
+        if x2 <= x1 or x2 > len(parent_1)-1:
+            raise IndexError("x2 is not a valid index")
+        # Checking against Parent 2
+        if x1 < 1 or x1 > len(parent_2)-2:
             raise IndexError("x1 is not a valid index")
         if x2 <= x1 or x2 > len(parent_2)-1:
             raise IndexError("x2 is not a valid index")
@@ -972,9 +1026,18 @@ class MetaHeuristicScheduler(AbstractScheduler):
                 else:
                     c[mapped_index] = e
 
-        for i in range(len(c)):
-            if c[i] is None:
-                c[i] = p2[i]
+        # Handle case where p2 has less tasks than p1
+        if (len(c) > len(p2)):
+            for i in range(len(p2)):
+                if c[i] is None:
+                    c[i] = p2[i]
+
+            # Remove None Values
+            c = [t for t in c if t is not None]
+        else:
+            for i in range(len(c)):
+                if c[i] is None:
+                    c[i] = p2[i]
 
         return c
 
@@ -1045,7 +1108,9 @@ class GeneticScheduler(MetaHeuristicScheduler):
         :param interval:
         :return:
         """
+
         print("Generating Schedule Using Genetic Algorithm")
+        self.clear_cache()
         start_runtime = datetime.now()
         new_task_list = self._initialize_tasklist(tasklist, interval)
         population = []
@@ -1662,7 +1727,7 @@ class AntScheduler(MetaHeuristicScheduler):
 
         value_now = Node.value(timestamp=time)
         utopia_point = Node.soft_deadline
-       #hard_deadline = Node.hard_deadline.timestamp()
+       #hard_deadline = Node.hard_deadline.execution_time()
 
         if time < utopia_point:
             utopia_value = Node.value(timestamp=utopia_point)
@@ -1748,7 +1813,7 @@ class Ant:
 
         """
         self._search_complete = False
-        self._path = []                 # [(AntTask, timestamp)]
+        self._path = []                 # [(AntTask, execution_time)]
         self._ant_tasks = []            # [(AntTask)]
         self._schedule: List[AbstractTask] = []             # [AbstractTasks]
         self._path_value = None
@@ -1759,10 +1824,10 @@ class Ant:
         return self._simulated_time
 
     def get_visited_nodes(self):
-        """ Returns an iterator of all the nodes (AntTasks, timestamp) the ant has visited.
+        """ Returns an iterator of all the nodes (AntTasks, execution_time) the ant has visited.
             Note that a "node" in this context consists of a AntTasks and a Timestamp
 
-        :return: Iterator of (AntTask, timestamp)
+        :return: Iterator of (AntTask, execution_time)
         """
         return map(lambda x: x, self._path)
 
@@ -1905,7 +1970,7 @@ class AntDependencyTree:
 
 
         # Update Pheromone Matrix
-        # edge = (ant.last_visited_node(), (node, timestamp))
+        # edge = (ant.last_visited_node(), (node, execution_time))
 
         #self._pheromones[edge] = self._pheromones.get(edge, 0) + 10000
 
@@ -2058,6 +2123,7 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
     def schedule_tasks(self, tasklist: List[AbstractTask], interval: int) -> List[AbstractTask]:
         np.seterr(all='raise')
         print("Generating Schedule with Simulated Annealing")
+        self.clear_cache()
         start_runtime = datetime.now()
 
         self._converged = False
@@ -2080,6 +2146,10 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
             for i in range(self.local_searches):
                 neighbor = self._neighbor(current_state)
                 neighbor_energy = self._energy(neighbor)
+
+                # Ignore invalid Neighbor states
+                if self._objective(neighbor) == self.invalid_schedule_value:
+                    continue
 
                 # Possibly change state
                 if self._acceptance_probability(current_state_energy, neighbor_energy, temp) >= random.uniform(0, 1):
@@ -2185,8 +2255,10 @@ class SimulateAnnealingScheduler(MetaHeuristicScheduler):
         val = self._objective(state)
 
         # Check for zero val case
-        if val == 0:
-            return -(self.invalid_schedule_value)
+        if val == self.invalid_schedule_value:
+            return -self.invalid_schedule_value
+        elif val == 0:
+            return -self.invalid_schedule_value - 1
         else:
             return sympy.Rational(1, val)
 
@@ -2199,13 +2271,18 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.temperature_list_length = 25
+        self.min_temperature_value = 100
         self.local_searches = 20
         self.pos = 0.4
         self._temperatures = TemperatureQueue()
         self.num_agents = 20
 
+        random.seed(5)
+        print(random.random())
+
     def schedule_tasks(self, tasklist: Schedule, sleep_interval: timedelta) -> List[AbstractTask]:
         print("Generating Schedule Using " + self.algorithm_name() + " Algorithm")
+        self.clear_cache()
         start_runtime = datetime.now()
 
         # Set Starting State
@@ -2238,6 +2315,10 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
         self._temperatures.remove_bottom(cut)
         self._temperatures.remove_top(cut)
 
+        if self._temperatures.peek() == 0:
+            self._temperatures.push(self.min_temperature_value)  # temp solution
+            #raise RuntimeError("Unable to initialize temperatures. Please consider increasing the temperature list length.")
+
         # Initialize agents
         # Note, number of agents is equal to the number of populations
         for agent_id in range(self.num_agents):
@@ -2245,9 +2326,7 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
             agent_solution.append(neighbor_state)
             agent_task_index.append(random.randint(0, len(neighbor_state)))
 
-        if self._temperatures.peek() == 0:
-            self._temperatures.push(100)  # temp solution
-            #raise RuntimeError("Unable to initialize temperatures. Please consider increasing the temperature list length.")
+
 
         # Set Best Solution
         self.best_solution = max(agent_solution, key=lambda x:  self._objective(x))
@@ -2270,8 +2349,13 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
                     # update agent task index
                     agent_task_index[agent_id] = (agent_task_index[agent_id] +1) % len(current_state)
                     index = agent_task_index[agent_id]
+
                     # Generate Candidate Solution
-                    neighbor_state = self._neighbor(current_state, tasklist, sleep_interval, agent_task_index[agent_id])
+                    neighbor_state: list = self._neighbor(current_state, tasklist, sleep_interval, agent_task_index[agent_id])
+
+                    # Check for invalid schedules
+                    if not self._validate_schedule(neighbor_state, self.optimization_horizon):
+                        continue
 
                     # Calculate probability of accepting candidate
                     current_state_energy = self._energy(current_state)
@@ -2279,7 +2363,7 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
                     prob = self._acceptance_probability(current_state_energy, neighbor_state_energy, temp)
 
                     # Check if candidate is accepted
-                    rand = random.uniform(0,1)
+                    rand = random.uniform(0,1) # Need to edit to make sure edge cases 0 or 1 aren't possible
                     if prob > rand:
 
                         # Update bad solution acceptance variables
@@ -2303,9 +2387,21 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
                     # Termination by Duration
                     # Break out of local searches
                     if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
-                        return self.best_solution
+                        break
 
-        return self.fit_to_horizon(self.best_solution)
+                # Termination by Duration
+                # Break out of agent Loop
+                if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
+                    break
+
+            # Termination by Duration
+            # Break out of algorithm
+            if self._flag_termination_by_duration and self._termination_by_duration(start_runtime):
+                break
+
+        best = self.fit_to_horizon(self.best_solution, self.optimization_horizon)
+        best = Schedule(best)
+        return best
 
     def _neighbor(self, state, tasklist, sleep_interval, fixed_task_index = None):
         """
@@ -2314,10 +2410,10 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
         :param solution_space:
         :return:
         """
-        candidate1 = Schedule(state)
-        candidate2 = Schedule(state)
-        candidate3 = Schedule(state)
-        candidate4 = Schedule(state)
+        candidate1 = list(state)
+        candidate2 = list(state)
+        candidate3 = list(state)
+        candidate4 = list(state)
         candidate5 = self.generate_random_schedule(tasklist, sleep_interval)
 
         if fixed_task_index is None:
@@ -2335,6 +2431,7 @@ class EnhancedListBasedSimulatedAnnealingScheduler(SimulateAnnealingScheduler):
         candidates = [candidate1, candidate2, candidate3, candidate4, candidate5]
 
         best_candidate = max(candidates, key=lambda x: self._objective(x))
+        best_candidate = best_candidate
 
         return best_candidate
 

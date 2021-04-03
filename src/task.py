@@ -20,6 +20,7 @@ class AbstractTask(ABC):
         self.periodicity: timedelta = timedelta(seconds=kwargs.get("periodicity", 0))
         self._cost = kwargs.get("cost", None)
         self._dependent_tasks: List[AbstractTask] = kwargs.get("dependent_tasks", [])
+        self._depended_by = []
         self._dynamic_tasks = kwargs.get("dynamic_tasks", [])        # potential tasks
         self._future_tasks = []                           # Tasks
 
@@ -83,12 +84,20 @@ class AbstractTask(ABC):
     def execute(self):
         self.analysis.execute()
 
-    def value(self, **kwargs):
-        if "timestamp" in kwargs:
-            timestamp = kwargs.get("timestamp").timestamp()
+    def value(self, execution_time:datetime = None):
+        """ Calculates a tasks value at a given execution time. If the execution time is not provided, the current
+            time will be used
+
+        :param execution_time: time to execute the task
+        :return: task's value
+        """
+
+        if execution_time is None:
+            execution_time = datetime.now().timestamp()
         else:
-            timestamp = datetime.now().timestamp()
-        return self.nu.eval(timestamp)
+            execution_time = execution_time.timestamp()
+
+        return self.nu.eval(execution_time)
 
     def has_dependencies(self):
         return len(self._dependent_tasks) > 0
@@ -105,8 +114,9 @@ class AbstractTask(ABC):
                 break
         return result
 
-    def add_dependency(self, dependency):
+    def add_dependency(self, dependency: AbstractTask):
         self._dependent_tasks.append(dependency)
+        dependency._depended_by.append(self)
 
     def remove_dependency(self, dependency):
         """Removes a task from dependency list if present. Otherwise, does nothing
@@ -283,9 +293,9 @@ class AbstractTask(ABC):
             t.soft_deadline = soft_deadline
             t.hard_deadline = hard_deadline
             t.values = [
-                (earliest_start.timestamp(), 0),
-                (soft_deadline.timestamp(), random.randint(0, max_value)),
-                (hard_deadline.timestamp(), 0)
+                (earliest_start.execution_time(), 0),
+                (soft_deadline.execution_time(), random.randint(0, max_value)),
+                (hard_deadline.execution_time(), 0)
             ]
             """
 
@@ -299,6 +309,21 @@ class AbstractTask(ABC):
             tasklist.append(t)
 
         return tasklist
+
+    def get_scheduled_task_details(self, execution_time):
+        value: float = self.value(execution_time)
+        utopian_time: datetime = self.soft_deadline
+        utopian_value: float = self.value(utopian_time)
+
+        results = {
+            "task": self,
+            "value": value,
+            "execution time": execution_time,
+            "utopian execution time": utopian_time,
+            "utopian value": utopian_value
+        }
+
+        return results
 
 
 class UserTask(AbstractTask):
@@ -378,8 +403,8 @@ class TaskDecorator(ABC):
         super().__init__()
         self._task = task
 
-    def value(self, **kwargs):
-        return self._task.value(**kwargs)
+    def value(self, timestamp):
+        return self._task.value(timestamp)
 
     @property
     def cost(self):
@@ -518,6 +543,7 @@ class TaskDecorator(ABC):
 
     def add_dependency(self, dependency):
         self._task.add_dependency(dependency)
+        dependency._depended_by.append(self._task)
 
     def remove_dependency(self, dependency):
         self._task.remove_dependency(dependency)
@@ -570,7 +596,6 @@ class Schedule(list):
     def append(self, task: AbstractTask) -> None:
         if not isinstance(task, AbstractTask):
             raise TypeError("Only Tasks can be added to a schedule")
-            raise TypeError("Only Tasks can be added to a schedule")
 
         # Track Dependencies
         if task.has_dependencies():
@@ -584,10 +609,18 @@ class Schedule(list):
         elif task.periodicity < timedelta(seconds=0):
             self._generated_periodic_tasks.append(task)
 
+        # Only add tasks with dependencies if the dependency is already in the schedule
+        if task.has_dependencies():
+            for d in task.get_dependencies():
+                if d not in self:
+                    raise RuntimeError("Task with dependency add, but dependency is not found")
+
         super().append(task)
 
         if len(self.dependent_tasks) + len(self.independent_tasks) != len(self):
             raise RuntimeError("Schedule Internal Data Invalid. Number of dependent/independent task does not match total tasks")
+
+
 
     def insert(self, __index: int, task: AbstractTask) -> None:
         if not isinstance(task, AbstractTask):
@@ -605,7 +638,16 @@ class Schedule(list):
         elif task.periodicity < timedelta(seconds=0):
             self._generated_periodic_tasks.append(task)
 
+        # Only add tasks with dependencies if the dependency is already in the schedule
+        if task.has_dependencies():
+            for d in task.get_dependencies():
+                if d not in self:
+                    raise RuntimeError("Task with dependency add, but dependency is not found")
+
         super().insert(__index, task)
+
+        if len(self.dependent_tasks) + len(self.independent_tasks) != len(self):
+            raise RuntimeError("Schedule Internal Data Invalid. Number of dependent/independent task does not match total tasks")
 
     def extend(self, schedule: Schedule) -> None:
 
@@ -629,6 +671,7 @@ class Schedule(list):
     @property
     def periodic_tasks(self):
         return self._periodic_tasks
+
     @property
     def generated_periodic_tasks(self):
         return self._generated_periodic_tasks

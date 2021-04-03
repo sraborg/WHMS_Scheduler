@@ -1,6 +1,7 @@
 from system import System
 from scheduler import SchedulerFactory, AbstractScheduler
 import argparse
+import random
 from analysis import AnalysisFactory
 from nu import NuFactory
 from datetime import datetime, timedelta
@@ -50,7 +51,7 @@ def genetic_sch(args):
     sys.schedule_tasks()
     gen_sch = sys._schedule
     utopian = sys.scheduler.utopian_schedule_value(unscheduled_tasks)
-    raw_value = sys.simulate_schedule()  # start_time=start.timestamp())
+    raw_value = sys.simulate_schedule()  # start_time=start.execution_time())
     weighted_value = sys.scheduler.weighted_schedule_value(unscheduled_tasks, raw_value)
 
     #print("Genetic Scheduler Value: " + str(total_gen_value))
@@ -108,7 +109,7 @@ def ant_sch(args):
 
     sys.schedule_tasks()
     ant_sch = sys._schedule
-    raw_value = sys.simulate_schedule()  # start_time=start.timestamp())
+    raw_value = sys.simulate_schedule()  # start_time=start.execution_time())
     utopian = sys.scheduler.utopian_schedule_value(unscheduled_tasks)
     weighted_value = sys.scheduler.weighted_schedule_value(unscheduled_tasks, raw_value)
 
@@ -150,7 +151,7 @@ def annealing_sch(args):
     #weighted_anneal_value = sys.scheduler.weighted_schedule_value(tasks, total_anneal_value)
     #print("Simulated Annealing Scheduler Value " + str(total_anneal_value))
     #print("Simulated Weighted Annealing Scheduler Value " + str(weighted_anneal_value))
-    raw_value = sys.simulate_schedule()  # start_time=start.timestamp())
+    raw_value = sys.simulate_schedule()  # start_time=start.execution_time())
     utopian = sys.scheduler.utopian_schedule_value(unscheduled_tasks)
     weighted_value = sys.scheduler.weighted_schedule_value(unscheduled_tasks, raw_value)
 
@@ -176,7 +177,7 @@ def random_sch(args):
 
     sys.schedule_tasks()
     random_sch = sys._schedule
-    total_random_value = sys.simulate_schedule()  # start_time=start.timestamp())
+    total_random_value = sys.simulate_schedule()  # start_time=start.execution_time())
     weighted_random_value = sys.scheduler.weighted_schedule_value(random_sch, total_random_value)
 
     print("Random Scheduler Value: " + str(total_random_value))
@@ -227,6 +228,9 @@ def after_parse(args, tasklist=None):
     if args.export_tasklist is not None:
         UserTask.save_tasks(args.export_tasklist, tasklist)
 
+
+random.seed(5)
+print(random.random())
 
 # Main Parser
 parser = argparse.ArgumentParser()

@@ -1,8 +1,8 @@
 import unittest
-from src.scheduler import *
-from src.task import SleepTask
-from src.nu import NuFactory
-from src.analysis import MedicalAnalysis
+from scheduler import *
+from task import SleepTask, SystemTask, AbstractTask
+from nu import NuFactory
+from analysis import MedicalAnalysis
 
 
 class TestScheduler(unittest.TestCase):
@@ -30,19 +30,6 @@ class TestScheduler(unittest.TestCase):
 
         self.assertFalse(AbstractScheduler._no_duplicate_tasks(tasks))
 
-    def test_no_duplicate_tasks_passes_sleeptasks(self):
-        """ Case: SleepTasks with dependencies.
-            Expected: Pass (Should ignore SleepTasks)
-        """
-        tasks = Schedule()
-        task_1 = SleepTask()
-        task_2 = SleepTask()
-        task_1.add_dependency(task_2)
-        tasks.append(task_1)
-        tasks.append(task_2)
-
-        self.assertTrue(AbstractScheduler._no_duplicate_tasks(tasks))
-
     def test_verify_schedule_dependencies_t1(self):
         """ Case: Invalid Schedule (Task 1 is scheduled before task 2 despite depending on task 2).
             Expected: Fails
@@ -53,8 +40,14 @@ class TestScheduler(unittest.TestCase):
         task_2 = UserTask()
         task_1.add_dependency(task_2)
 
-        schedule.append(task_1)
+
         schedule.append(task_2)
+        schedule.append(task_1)
+
+        # Swap Dependencies to create an invalid schedule
+        t = schedule[0]
+        schedule[0] = schedule[1]
+        schedule[1] = t
 
         self.assertFalse(AbstractScheduler.verify_schedule_dependencies(schedule))
 
@@ -71,6 +64,19 @@ class TestScheduler(unittest.TestCase):
         schedule.append(task_1)
 
         self.assertTrue(AbstractScheduler.verify_schedule_dependencies(schedule))
+
+    def test_verify_schedule_dependencies_t3(self):
+        """ Case: Invalid "Schedule" (list of tasks) (Task 1 depends on Tasks 2 but task 2 is not in the list)
+            Expected: Pass
+        """
+        schedule = []
+        task_1 = UserTask()
+        task_2 = UserTask()
+        task_1.add_dependency(task_2)
+
+        schedule.append(task_1)
+
+        self.assertFalse(AbstractScheduler.verify_schedule_dependencies(schedule))
 
     def test_verify_task_dependencies_t1(self):
         """ Case: Task dependencies are in prior_tasks
@@ -178,27 +184,6 @@ class TestScheduler(unittest.TestCase):
         first_task_timestamp = int(tasks[0].earliest_start.timestamp())
         last_task_timestamp = int(tasks[5].earliest_start.timestamp())
         self.assertEqual(first_task_timestamp + 50, last_task_timestamp)
-    '''
-    def test_task_save_and_load_tasklist_pass_match(self):
-        """ Test whether save/load tasklist preserves dependencies
-
-        """
-        tasklist = []
-        t1 = UserTask()
-        t2 = UserTask()
-        t3 = UserTask()
-
-        t2.add_dependency(t1)
-        t3.add_dependency(t1)
-        t3.add_dependency(t2)
-
-        tasks = Schedule([t1, t2, t3])
-        sys = System()
-        sys.scheduler = GeneticScheduler()
-        sys.scheduler.save_tasklist("test_save_load.cvs", tasks)
-        loaded_tasks = sys.scheduler.load_tasklist("test_save_load.cvs")
-        self.assertEqual(sys._tasks, loaded_tasks)
-    '''
 
     def test_fit_to_horizon(self):
         """ Verify fit_to_horizon removes tasks that exceed horizon.
@@ -307,6 +292,46 @@ class TestScheduler(unittest.TestCase):
 
         self.assertEqual(u_value, 16)
 
+    def test_utopian_schedule_2(self):
+        """ Verify that the utopian schedule calculates the correct total value (including periodic tasks), regardless
+            of time conflicts
+            Expected: Pass
+        """
+
+        start_time = datetime.fromtimestamp(1640995200)
+        end_time = datetime.fromtimestamp(1640997000)
+
+        s = MetaHeuristicScheduler()
+        s.start_time = start_time
+        s.end_time = end_time
+        tasks = UserTask.load_tasks("test_tasks_30_min_horizon.json")
+        tasks = Schedule(tasks)
+
+        u_value = s.utopian_schedule_value(tasks)
+
+        aco = SchedulerFactory.ant_colony_scheduler()
+        aco.start_time = start_time
+        aco.end_time = end_time
+        aco_sch = aco.schedule_tasks(tasks, timedelta(minutes=5))
+        aco_value = s.simulate_execution(aco_sch)
+
+        elbsa = SchedulerFactory.enhanced_list_based_simulated_annealing()
+        elbsa.start_time = start_time
+        elbsa.end_time = end_time
+        elbsa_sch = elbsa.schedule_tasks(tasks, timedelta(minutes=5))
+        elbsa_value = s.simulate_execution(elbsa_sch)
+
+        nga = SchedulerFactory.new_genetic_scheduler()
+        nga.start_time = start_time
+        nga.end_time = end_time
+        nga_sch = nga.schedule_tasks(tasks, timedelta(minutes=5))
+        nga_value = s.simulate_execution(nga_sch)
+
+        self.assertEqual(u_value, 300)
+        self.assertGreaterEqual(u_value, aco_value)
+        self.assertGreaterEqual(u_value, nga_value)
+        self.assertGreaterEqual(u_value, elbsa_value)
+
     def test_weighted_schedule_value(self):
         start_time = datetime.now()
         end_time = start_time + timedelta(minutes=1)
@@ -336,6 +361,67 @@ class TestScheduler(unittest.TestCase):
         weight = s.weighted_schedule_value(unscheduled_tasks, raw)
 
         self.assertEqual(weight, raw/utopian)
+
+    def test_get_task_details(self):
+
+        start = datetime.now()
+        soft_deadline = start + timedelta(minutes=5)
+        hard_deadline = start + timedelta(minutes=10)
+
+        #s = Schedule()
+        t = UserTask()
+        t.values = [
+                (start.timestamp(), 1),
+                (soft_deadline.timestamp(), 100),
+                (hard_deadline.timestamp(), 1)
+            ]
+        t.analysis = MedicalAnalysis(wcet=5)
+        t.nu = NuFactory.regression()
+        t.nu.fit_model(t.values)
+        #s.append(t)
+
+        execution_time = start + timedelta(minutes=4)
+
+        #sch = MetaHeuristicScheduler()
+        #sch.start_time = start
+        #sch.end_time = start + timedelta(minutes=15)
+        details = t.get_scheduled_task_details(execution_time)
+
+        #print(details)
+
+    def test_no_duplicate_tasks_passes_sleeptasks(self):
+        """ Case: SleepTasks with dependencies.
+            Expected: Pass (Should ignore SleepTasks)
+        """
+        tasks = Schedule()
+        task_1 = SleepTask()
+        task_2 = SleepTask()
+        task_1.add_dependency(task_2)
+        tasks.append(task_1)
+        tasks.append(task_2)
+
+        self.assertTrue(AbstractScheduler._no_duplicate_tasks(tasks))
+
+    def test_dependency_sort(self):
+
+        tasks = Schedule()
+        for i in range(4):
+            t = UserTask()
+            if i % 2 == 1:
+                t.add_dependency(tasks[i-1])
+            tasks.append(t)
+
+        tasks[1].add_dependency(tasks[2])
+
+        s = MetaHeuristicScheduler()
+        s1 = s.dependency_sort(tasks)
+
+        tasks.reverse()
+        s2 = s.dependency_sort(tasks)
+
+
+        self.assertTrue(s.verify_schedule_dependencies(s1))
+        self.assertTrue(s.verify_schedule_dependencies(s2))
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from operator import itemgetter
 import numpy as np
+import numpy.polynomial.polynomial as poly
 from typing import List, Tuple
 
 
@@ -17,10 +18,13 @@ class AbstractNu(ABC):
         self._model = None
         self._f = None
         self._min_regression_value = 0
+        self._non_utopian_offset = 1    #
         self._invalid_time_value = 0
         self._earliest_start: datetime = None
         self._soft_deadline: datetime = None
         self._hard_deadline: datetime = None
+        self._coef = None
+        self._stats = None
 
     @property
     def earliest_start(self):
@@ -43,25 +47,33 @@ class AbstractNu(ABC):
 
         Also splits the tuples in to corresponding lists: x = datetimes & y = values
 
-        :param values: a list of timestamp/value tuples
+        :param values: a list of execution_time/value tuples
         """
         self._values = values
-        self._x, self._y = zip(*values)              # Time, Values
+        self._x, self._y = zip(*values)              # Timestampes, Values
         self._earliest_start = datetime.fromtimestamp(min(self._x))
         self._soft_deadline = datetime.fromtimestamp(max(values, key=itemgetter(1))[0])
         self._hard_deadline = datetime.fromtimestamp(max(self._x))
 
-    def eval(self, timestamp):
-        """ Determines the value of executing task with respect to the given timestamp
+    def eval(self, timestamp: datetime):
+        """ Determines the value of executing task with respect to the given execution_time
 
-        :param timestamp: the input timestamp
+        :param timestamp: the input execution_time
         :return: the corresponding value
         """
         if timestamp < min(self._x) or timestamp > max(self._x):    # Out of scheduling window (too early/late)
             return self._invalid_time_value
 
+        value = self._f(timestamp)
+        utopian_value = self.utopian_value()
+        # Handle case where non-utopian values are equal (or higher) than utopian
+        if timestamp != self.soft_deadline and value >= utopian_value:
+            value = value - self._non_utopian_offset
+
         # Fixing negative values returned by regression
-        return max (self._f(timestamp), self._min_regression_value)
+        value = max(self._f(timestamp), self._min_regression_value)
+
+        return value
 
     @abstractmethod
     def name(self) -> str:
@@ -106,9 +118,38 @@ class NuRegression(AbstractNu):
         :return:
         """
         super().fit_model(values)
-        rank = len(self._y) - 2
-        self._model = np.polyfit(list(self._x), list(self._y), rank)
-        self._f = np.poly1d(self._model)
+        rank = len(self._y) - 1
+        xs = list(self._x)
+        ys = list(self._y)
+
+        self._f = poly.polyfit(xs, ys, rank) # Generate Polynomial
+
+        #self._coef, self._stats = poly.polyfit(xs, ys, rank)
+        #self._f = poly.Polynomial(self._coef)
+
+
+    def eval(self, timestamp: datetime):
+        """
+
+        :param timestamp:
+        :return:
+        """
+
+        if timestamp < min(self._x) or timestamp > max(self._x):  # Out of scheduling window (too early/late)
+            return self._invalid_time_value
+
+        value = poly.polyval(timestamp, self._f) #poly.polyval(timestamp, self._coef)
+        utopian_value = self.utopian_value()
+
+        # Handle case where non-utopian values are equal (or higher) than utopian
+        if timestamp != self.soft_deadline and value >= utopian_value:
+            value = utopian_value - self._non_utopian_offset
+
+        # Fixing negative values returned by regression
+        value = max(value, self._min_regression_value)
+
+        assert(value <= self.utopian_value())
+        return value
 
     def name(self) -> str:
         return "REGRESSION"
@@ -137,15 +178,18 @@ class NuConstant(AbstractNu):
         super().fit_model(values)
 
     def eval(self, timestamp):
-        """ Returns a constant value regardless of the timestamp value
+        """ Returns a constant value regardless of the execution_time value
 
-        :param timestamp: a timestamp (not used, value is constant)
+        :param timestamp: a execution_time (not used, value is constant)
         :return: the constant value
         """
         return self._value
 
     def name(self) -> str:
         return "CONSTANT"
+
+    def utopian_value(self):
+        return self._value
 
 
 class NuFactory:
